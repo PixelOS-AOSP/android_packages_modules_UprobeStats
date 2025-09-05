@@ -6,7 +6,7 @@ pub mod guardrail;
 mod process;
 mod uprobestats_service;
 
-use rustutils::system_properties;
+use rustutils::android::system_properties;
 use std::time::{Duration, Instant};
 
 const BPF_DIR: &str = "/sys/fs/bpf/uprobestats/";

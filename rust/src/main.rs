@@ -3,7 +3,7 @@ use anyhow::{anyhow, bail, ensure, Result};
 use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::ProcessState;
 use log::{debug, error, LevelFilter};
-use rustutils::system_properties;
+use rustutils::android::system_properties;
 use std::{
     cmp::{max, min},
     process::exit,
