@@ -277,6 +277,8 @@ fn is_bpf_file_enabled(bpf_prog_or_map_name: &str) -> bool {
             || uprobestats_mainline_flags_rust::enable_bitmap_snapshot()
     } else if bpf_prog_or_map_name.contains("Binder") {
         uprobestats_mainline_flags_rust::enable_binder_transaction()
+    } else if bpf_prog_or_map_name.contains("prog_BitmapAllocation_uprobe_create_scaled_bitmap") {
+        uprobestats_mainline_flags_rust::enable_bitmap_scaled_instrumentation()
     } else {
         true
     }

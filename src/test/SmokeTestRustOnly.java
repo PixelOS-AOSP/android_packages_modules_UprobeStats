@@ -20,6 +20,7 @@ import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
 import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSACTION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
+import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 
@@ -252,6 +253,70 @@ public class SmokeTestRustOnly extends BaseHostJUnit4Test {
             assertThat(maxAllocationSizeSnapshot.size()).isEqualTo(2);
             assertThat(maxAllocationSizeSnapshot.get(0).getActivityName())
                     .isEqualTo("com.android.uprobestats.bitmap.BitmapTestActivity");
+        }
+    }
+
+    @Test
+    @RequiresFlagsEnabled({
+        FLAG_ENABLE_UPROBESTATS,
+        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
+        com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS_V2,
+        FLAG_ENABLE_BITMAP_INSTRUMENTATION,
+        FLAG_ENABLE_BITMAP_SNAPSHOT,
+        FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION,
+    })
+    public void bitmapAllocationScaled() throws Exception {
+        assumeTrue(CpuFeatures.isArm64(getDevice()));
+        final int uid = DeviceUtils.getAppUid(getDevice(), BITMAP_TESTAPP_PACKAGE_NAME);
+
+        configureStatsDAndStartUprobeStats(
+                getClass(),
+                getDevice(),
+                BITMAP_ALLOCATION_SNAPSHOT_CONFIG,
+                UprobestatsExtensionAtoms.ANDROID_GRAPHICS_BITMAP_SCALED_FIELD_NUMBER);
+
+        try (AutoCloseable a =
+                DeviceUtils.withActivity(
+                        getDevice(),
+                        BITMAP_TESTAPP_PACKAGE_NAME,
+                        "BitmapTestActivity",
+                        "action",
+                        "action.lmk")) {
+
+            // Allow UprobeStats/StatsD time to collect metric
+            RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+            getDevice().executeShellCommand("dumpsys meminfo " +
+                    "com.android.uprobestats.bitmap");
+
+            // Wait until the uprobestats process exits.
+            waitForUprobeStatsToExit(35);
+
+            // See if the atom made it
+            List<StatsLog.EventMetricData> data =
+                    ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+            assertThat(data.size()).isGreaterThan(0);
+            boolean anyMatch =
+                    data.stream()
+                            .map(StatsLog.EventMetricData::getAtom)
+                            .filter(
+                                    atom ->
+                                            atom.hasExtension(
+                                                    UprobestatsExtensionAtoms
+                                                            .androidGraphicsBitmapScaled))
+                            .map(
+                                    atom ->
+                                            atom.getExtension(
+                                                    UprobestatsExtensionAtoms
+                                                            .androidGraphicsBitmapScaled))
+                            .anyMatch(
+                                    reported ->
+                                            reported.getScaledWidth() == 321
+                                                    && reported.getScaledHeight() == 321
+                                                    && reported.getOriginalWidth() == 48
+                                                    && reported.getOriginalHeight() == 48
+                                                    && reported.getUid() == uid);
+            assertThat(anyMatch).isTrue();
         }
     }
 

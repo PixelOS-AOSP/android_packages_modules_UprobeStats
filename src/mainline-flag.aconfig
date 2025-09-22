@@ -57,6 +57,13 @@ flag {
 }
 
 flag {
+    name: "enable_bitmap_scaled_instrumentation"
+    namespace: "system_performance"
+    description: "Whether to instrument bitmap scaling events."
+    bug: "408255571"
+}
+
+flag {
     name: "enable_binder_transaction"
     namespace: "responsible_apis"
     description: "Whether to enable the binder transaction instrumentation"

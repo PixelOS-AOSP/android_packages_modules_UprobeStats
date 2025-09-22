@@ -40,6 +40,8 @@ public class BitmapTestActivity extends Activity {
                     android.graphics.Bitmap png2 =
                             android.graphics.BitmapFactory.decodeResource(
                                     getResources(), R.drawable.icon1, options);
+                    android.graphics.Bitmap scaledBitmap =
+                            android.graphics.Bitmap.createScaledBitmap(png2, 321, 321, true);
                     png2 = null;
                 };
 
