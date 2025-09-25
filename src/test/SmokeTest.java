@@ -38,11 +38,11 @@ import android.platform.test.flag.junit.host.HostFlagsValueProvider;
 import com.android.compatibility.common.util.CpuFeatures;
 import com.android.os.StatsLog;
 import com.android.os.framework.FrameworkExtensionAtoms;
-import com.android.os.uprobestats.TestUprobeStatsAtomReported;
-import com.android.os.uprobestats.UprobestatsExtensionAtoms;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
+import com.android.uprobestats.TestUprobeStatsAtomReported;
+import com.android.uprobestats.UprobestatsExtensionAtoms;
 
 import com.google.protobuf.ExtensionRegistry;
 

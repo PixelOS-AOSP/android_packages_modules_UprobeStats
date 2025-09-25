@@ -29,7 +29,6 @@ import static test.SmokeTestSetup.initializeStatsD;
 import static test.SmokeTestSetup.initializeUprobeStats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
-import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
@@ -37,15 +36,14 @@ import android.platform.test.flag.junit.host.HostFlagsValueProvider;
 
 import com.android.compatibility.common.util.CpuFeatures;
 import com.android.os.StatsLog;
-import com.android.os.uprobestats.BindServiceLockedWithBalFlagsReported;
-import com.android.os.uprobestats.SetComponentEnabledSettingReported;
-import com.android.os.uprobestats.DisabledLauncherActivityUidsReported;
-import com.android.os.uprobestats.BindServiceLockedWithBalFlagsUidsReported;
-import com.android.os.uprobestats.UprobestatsExtensionAtoms;
-import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
+import com.android.uprobestats.BindServiceLockedWithBalFlagsReported;
+import com.android.uprobestats.BindServiceLockedWithBalFlagsUidsReported;
+import com.android.uprobestats.DisabledLauncherActivityUidsReported;
+import com.android.uprobestats.SetComponentEnabledSettingReported;
+import com.android.uprobestats.UprobestatsExtensionAtoms;
 
 import com.google.protobuf.ExtensionRegistry;
 
@@ -55,10 +53,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class SmokeTestUprobeStatsBridgeService extends BaseHostJUnit4Test {

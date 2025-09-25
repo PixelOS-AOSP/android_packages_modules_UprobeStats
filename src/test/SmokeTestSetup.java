@@ -24,9 +24,9 @@ import android.cts.statsdatom.lib.ReportUtils;
 
 import com.android.internal.os.StatsdConfigProto;
 import com.android.os.framework.FrameworkExtensionAtoms;
-import com.android.os.uprobestats.UprobestatsExtensionAtoms;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.util.RunUtil;
+import com.android.uprobestats.UprobestatsExtensionAtoms;
 
 import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.TextFormat;

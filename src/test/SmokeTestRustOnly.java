@@ -22,7 +22,6 @@ import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSA
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
-import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -41,15 +40,13 @@ import android.platform.test.flag.junit.host.HostFlagsValueProvider;
 
 import com.android.compatibility.common.util.CpuFeatures;
 import com.android.os.StatsLog;
-import com.android.os.uprobestats.AndroidGraphicsBitmapAllocationSnapshot;
-import com.android.os.uprobestats.BindServiceLockedWithBalFlagsReported;
-import com.android.os.uprobestats.SetComponentEnabledSettingReported;
-import com.android.os.uprobestats.TestUprobeStatsAtomReported;
-import com.android.os.uprobestats.UprobestatsExtensionAtoms;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
+import com.android.uprobestats.AndroidGraphicsBitmapAllocationSnapshot;
+import com.android.uprobestats.TestUprobeStatsAtomReported;
+import com.android.uprobestats.UprobestatsExtensionAtoms;
 
 import com.google.protobuf.ExtensionRegistry;
 
