@@ -19,7 +19,7 @@
 /**
  * Binder interface to communicate with UProbeStatsService.
  *
- * {@hide}
+ * @hide
  */
 interface IUprobeStatsService {
   /**
