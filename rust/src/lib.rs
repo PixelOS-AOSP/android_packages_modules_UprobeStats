@@ -4,7 +4,8 @@ pub mod bpf_map;
 pub mod config_resolver;
 pub mod guardrail;
 mod process;
-mod uprobestats_service;
+#[cfg(feature = "bridge-service")]
+mod uprobestats_bridge_service;
 
 use rustutils::android::system_properties;
 use std::time::{Duration, Instant};

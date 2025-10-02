@@ -19,19 +19,19 @@ package {
 }
 
 filegroup {
-    name: "service-uprobestats-sources",
+    name: "uprobestats-bridge-service-sources",
     srcs: [
         "java/**/*.java",
     ],
 }
 
 java_library {
-    enabled: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+    enabled: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: true,
-        false: false,
+        default: false,
     }),
-    srcs: [":service-uprobestats-sources"],
-    name: "service-uprobestats",
+    srcs: [":uprobestats-bridge-service-sources"],
+    name: "service-uprobestats-bridge",
     defaults: ["standalone-system-server-module-optimize-defaults"],
     installable: true,
     libs: [
@@ -39,7 +39,7 @@ java_library {
         "framework-configinfrastructure.stubs.module_lib",
     ],
     static_libs: [
-        "uprobestats-service-aidl-java",
+        "uprobestats-bridge-service-aidl-java",
         "uprobestats_mainline_flags_java_lib",
     ],
     sdk_version: "system_server_current",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.os.uprobestats;
+package com.android.uprobestats;
 
 import android.annotation.RequiresNoPermission;
 import android.content.ComponentName;
@@ -31,11 +31,11 @@ import java.util.List;
  *
  * @hide
  */
-public final class UprobeStatsServiceImpl extends IUprobeStatsService.Stub {
-    private static final String TAG = "UprobeStatsService";
+public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeService.Stub {
+    private static final String TAG = "UprobeStatsBridgeService";
     private final Context mContext;
 
-    public UprobeStatsServiceImpl(Context context) {
+    public UprobeStatsBridgeServiceImpl(Context context) {
         super();
         mContext = context;
     }

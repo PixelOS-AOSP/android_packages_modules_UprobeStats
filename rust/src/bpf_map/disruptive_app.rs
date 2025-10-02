@@ -1,7 +1,7 @@
 use super::{bytes_as_str, Handler};
 use crate::config_resolver::ResolvedTask;
 use crate::is_user_build;
-use crate::uprobestats_service::UPROBESTATS_SERVICE;
+use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, Result};
 use log::debug;
 use statslog_uprobestats::{
@@ -28,7 +28,7 @@ unsafe impl Handler for ComponentEnabledSettingHandler {
         let new_state = data.new_state;
         let calling_package_name = bytes_as_str(&data.calling_package_name)?;
 
-        let service = UPROBESTATS_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
+        let service = UPROBESTATS_BRIDGE_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
         let is_launcher_activity = service.isLauncherActivity(package_name, class_name, true)?;
 
         debug!("ComponentEnabledSetting: package_name={package_name:?}, class_name={class_name:?}, new_state={new_state:?}, calling_package_name={calling_package_name:?}, is_launcher_activity={is_launcher_activity}");
@@ -98,7 +98,7 @@ unsafe impl Handler for BindServiceLockedHandler {
                 )?;
             }
 
-            let service = UPROBESTATS_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
+            let service = UPROBESTATS_BRIDGE_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
             let binder_uid = service.getUidForPackage(calling_package)?;
             let bindee_uid = if intent_package.is_empty() {
                 service.getUidForPackage(intent_component_name_package)?

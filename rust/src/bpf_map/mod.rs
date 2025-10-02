@@ -1,6 +1,7 @@
 //! Deals with fetching data BPF ring buffers ("maps").
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
+#[cfg(feature = "bridge-service")]
 use crate::bpf_map::disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler};
 use crate::bpf_map::generic_instrumentation::{CallResultHandler, CallTimestampHandler};
 use crate::bpf_map::process_management::{
@@ -24,6 +25,7 @@ use zerocopy::{Immutable, IntoBytes};
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
+#[cfg(feature = "bridge-service")]
 mod disruptive_app;
 mod generic_instrumentation;
 mod process_management;
@@ -183,7 +185,6 @@ fn register_handler<H: Handler + Default>(handler_registry: &mut HandlerRegistry
 
 static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     let mut map = HashMap::new();
-    register_handler::<BindServiceLockedHandler>(&mut map);
     if uprobestats_mainline_flags_rust::enable_bitmap_snapshot() {
         register_handler::<BitmapAllocationHandlerV1>(&mut map);
     } else {
@@ -194,9 +195,15 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     }
     register_handler::<CallTimestampHandler>(&mut map);
     register_handler::<CallResultHandler>(&mut map);
-    register_handler::<ComponentEnabledSettingHandler>(&mut map);
     register_handler::<SetUidTempAllowlistStateRecordHandler>(&mut map);
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler>(&mut map);
+    #[cfg(feature = "bridge-service")]
+    {
+        if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
+            register_handler::<BindServiceLockedHandler>(&mut map);
+            register_handler::<ComponentEnabledSettingHandler>(&mut map);
+        }
+    }
     map
 });
 

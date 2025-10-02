@@ -19,13 +19,13 @@ package {
 }
 
 filegroup {
-    name: "uprobestats-service-aidl-sources",
+    name: "uprobestats-bridge-service-aidl-sources",
     srcs: ["**/*.aidl"],
 }
 
 aidl_interface {
-    name: "uprobestats-service-aidl",
-    srcs: [":uprobestats-service-aidl-sources"],
+    name: "uprobestats-bridge-service-aidl",
+    srcs: [":uprobestats-bridge-service-aidl-sources"],
     unstable: true,
     min_sdk_version: "36",
     backend: {

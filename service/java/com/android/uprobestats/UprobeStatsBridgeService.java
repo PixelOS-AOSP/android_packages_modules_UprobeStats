@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.os.uprobestats;
+package com.android.uprobestats;
 
 import android.annotation.NonNull;
 import android.content.Context;
@@ -27,19 +27,19 @@ import com.android.server.SystemService;
  *
  * @hide
  */
-public class UprobeStatsService extends SystemService {
-    private static final String SERVICE_NAME = "uprobestats_service";
-    private static final String TAG = "UprobeStatsService";
+public class UprobeStatsBridgeService extends SystemService {
+    private static final String SERVICE_NAME = "uprobestats_bridge_service";
+    private static final String TAG = "UprobeStatsBridgeService";
 
-    private final UprobeStatsServiceImpl mUprobeStatsServiceImpl;
+    private final UprobeStatsBridgeServiceImpl mUprobeStatsBridgeServiceImpl;
 
-    public UprobeStatsService(@NonNull Context context) {
+    public UprobeStatsBridgeService(@NonNull Context context) {
         super(context);
-        mUprobeStatsServiceImpl = new UprobeStatsServiceImpl(context);
+        mUprobeStatsBridgeServiceImpl = new UprobeStatsBridgeServiceImpl(context);
     }
 
     @Override
     public void onStart() {
-        publishBinderService(SERVICE_NAME, mUprobeStatsServiceImpl);
+        publishBinderService(SERVICE_NAME, mUprobeStatsBridgeServiceImpl);
     }
 }

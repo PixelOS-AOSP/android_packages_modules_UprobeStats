@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
- package com.android.os.uprobestats;
+ package com.android.uprobestats;
 
 /**
- * Binder interface to communicate with UProbeStatsService.
+ * Binder interface to communicate with the UprobeStatsBridgeService.
  *
  * @hide
  */
-interface IUprobeStatsService {
+interface IUprobeStatsBridgeService {
   /**
    * Returns true if the given package name and class name represent a launcher activity.
    *

@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class SmokeTestUprobeStatsService extends BaseHostJUnit4Test {
+public class SmokeTestUprobeStatsBridgeService extends BaseHostJUnit4Test {
     private static final String TEST_MALWARE_SIGNAL_CONFIG = "disruptive_app.textproto";
     private ExtensionRegistry mRegistry;
 
