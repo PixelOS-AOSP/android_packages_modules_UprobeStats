@@ -2,10 +2,12 @@
 use super::{bytes_as_str, BpfMap, BpfMapAccessor, Handler};
 use crate::config_resolver::ResolvedTask;
 use anyhow::{bail, Result};
-use log::{debug, error};
+use log::debug;
 use statssocket::AStatsEvent;
-use std::ops::Deref;
-use std::os::raw::{c_char, c_ulong};
+use std::{
+    ops::Deref,
+    os::raw::{c_char, c_ulong},
+};
 use uprobestats_bpf_bindgen::{
     BinderCodesBpfMapValue, BinderInterfaceBpfMapKey, BinderTransaction,
 };
@@ -40,8 +42,7 @@ unsafe impl Handler for BinderTransactionHandler {
 #[derive(Default)]
 pub struct BinderInterfaceBpfMap {}
 
-/// A specialized accessor for the BinderInterfaceBpfMap that drains any
-/// remaining entries from the map when it is dropped.
+/// A specialized accessor for the BinderInterfaceBpfMap with a `drain` method to remove all keys.
 pub struct BinderInterfaceMapAccessor(BpfMapAccessor<BinderInterfaceBpfMap>);
 
 impl BinderInterfaceMapAccessor {
@@ -51,7 +52,7 @@ impl BinderInterfaceMapAccessor {
     }
 
     /// Drains all entries from the map.
-    fn drain(&self) -> Result<()> {
+    pub fn drain(&self) -> Result<()> {
         while let Some(key) = self.get_first_key()? {
             let deleted = self.delete(&key)?;
             if !deleted {
@@ -68,14 +69,6 @@ impl Deref for BinderInterfaceMapAccessor {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl Drop for BinderInterfaceMapAccessor {
-    fn drop(&mut self) {
-        if let Err(e) = self.drain() {
-            error!("Failed to drain BinderInterfaceBpfMap on drop: {}", e);
-        }
     }
 }
 

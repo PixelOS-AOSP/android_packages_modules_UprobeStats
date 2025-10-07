@@ -4,6 +4,7 @@ pub mod bpf_map;
 pub mod config_resolver;
 pub mod guardrail;
 mod process;
+pub mod task;
 #[cfg(feature = "bridge-service")]
 mod uprobestats_bridge_service;
 
