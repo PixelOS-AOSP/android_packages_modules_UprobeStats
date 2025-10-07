@@ -51,14 +51,10 @@ fn main_impl() -> Result<()> {
     let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
 
     let (task, probes) = task::resolve_config(&config_bytes)?;
-
     let state = GlobalState::new();
     let mut state = state.lock().unwrap();
-
     task::update_active_maps(&mut state, &task)?;
-    let binder_interface_bpf_map = task::setup_binder_transaction_filters(&probes)?;
     task::execute(&task, &probes);
-    task::cleanup_binder_transaction_filters(binder_interface_bpf_map);
     let last_task = task::cleanup_active_maps(&mut state, &task);
 
     // At this point only one task ever runs at a time. If the this is false, something has gone horribly wrong.

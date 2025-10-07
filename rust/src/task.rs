@@ -52,6 +52,8 @@ pub fn resolve_config(config_bytes: &[u8]) -> Result<(ResolvedTask, Vec<Resolved
 }
 
 /// Step 2: checks for conflicts with other tasks, and updates the global state accordingly.
+///
+/// Once this step completes, step 4 (cleaning up the active maps) *must* also complete.
 pub fn update_active_maps(state: &mut MutexGuard<GlobalState>, task: &ResolvedTask) -> Result<()> {
     let new_maps: HashSet<String> = task.bpf_map_paths.iter().cloned().collect();
     let conflicts: Vec<_> = new_maps.intersection(&state.active_maps).collect();
@@ -63,12 +65,36 @@ pub fn update_active_maps(state: &mut MutexGuard<GlobalState>, task: &ResolvedTa
     Ok(())
 }
 
-/// Step 3: sets up the BPF map for binder transaction filters.
+/// Step 3: executes the blocking, long-running part of a task:
+/// - sets up the BPF map for binder transaction filters.
+/// - attaches the BPF probes
+/// - polls the BPF maps for the specified duration
+/// - drains the binder transaction filters map when done.
+///
+/// This step must not fail, as the following cleanup steps are always required.
+pub fn execute(task: &ResolvedTask, probes: &[ResolvedProbe]) {
+    match setup_binder_transaction_filters(probes) {
+        Ok(map) => {
+            if let Err(e) = attach_probes_and_poll_maps(task, probes) {
+                error!("task execution failed: {e:?}");
+            }
+            cleanup_binder_transaction_filters(map);
+        }
+        Err(e) => {
+            error!(
+                "Failed to setup binder transaction filters. Abandoning execution of task: {e:?}"
+            );
+        }
+    }
+}
+
+/// Step 3a: sets up the BPF map for binder transaction filters.
 ///
 /// This function iterates through the resolved probes and, if any of them are for binder
-/// transactions, it creates and populates the necessary BPF map. The returned accessor
-/// must be drained at the end of the protocol.
-pub fn setup_binder_transaction_filters(
+/// transactions, it creates and populates the necessary BPF map.
+///
+/// Once this step complete, step 3c (draining the filters) *must* also complete.
+fn setup_binder_transaction_filters(
     probes: &[ResolvedProbe],
 ) -> Result<Option<BinderInterfaceMapAccessor>> {
     let mut maybe_binder_interface_bpf_map = None;
@@ -121,18 +147,10 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
     Ok(())
 }
 
-/// Step 4: executes the blocking, long-running part of a task:
+/// Step 3b: executes the blocking, long-running part of a task:
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
-///
-/// This step must not fail, as the following cleanup steps are always required.
-pub fn execute(task: &ResolvedTask, probes: &[ResolvedProbe]) {
-    if let Err(e) = execute_impl(task, probes) {
-        error!("task execution failed: {e:?}");
-    }
-}
-
-fn execute_impl(task: &ResolvedTask, probes: &[ResolvedProbe]) -> Result<()> {
+fn attach_probes_and_poll_maps(task: &ResolvedTask, probes: &[ResolvedProbe]) -> Result<()> {
     for probe in probes {
         debug!(
             "attaching bpf {} to {} at {}",
@@ -180,13 +198,13 @@ fn execute_impl(task: &ResolvedTask, probes: &[ResolvedProbe]) -> Result<()> {
     Ok(())
 }
 
-/// Step 5: drains the binder transaction filters map.
+/// Step 3c: drains the binder transaction filters map.
 ///
 /// This function iterates through the resolved probes and, if any of them are for binder
 /// transactions, it drains the necessary BPF map.
 ///
 /// This step must not fail, as the following cleanup steps are always required.
-pub fn cleanup_binder_transaction_filters(
+fn cleanup_binder_transaction_filters(
     binder_interface_bpf_map: Option<BinderInterfaceMapAccessor>,
 ) {
     let Some(binder_interface_bpf_map) = binder_interface_bpf_map else {
@@ -197,7 +215,7 @@ pub fn cleanup_binder_transaction_filters(
     }
 }
 
-/// Step 6: cleans up the global state.
+/// Step 4: cleans up the global state.
 /// - removes the BPF maps from the active set
 ///
 /// Returns true if this was the last task to complete.
