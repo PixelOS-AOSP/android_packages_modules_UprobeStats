@@ -5,17 +5,16 @@ package {
 
 filegroup {
     name: "uprobestats-test-sources",
-    srcs: ["*.java"],
+    srcs: ["src/*.java"],
     exclude_srcs: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: [],
         false: [
-            "SmokeTestRustOnly.java",
-            "SmokeTestUprobeStatsService.java",
+            "src/SmokeTestRustOnly.java",
         ],
     }) + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: [],
         false: [
-            "SmokeTestUprobeStatsService.java",
+            "src/SmokeTestUprobeStatsBridgeService.java",
         ],
     }),
 }
@@ -23,7 +22,7 @@ filegroup {
 java_test_host {
     name: "uprobestats-test",
     srcs: [":uprobestats-test-sources"],
-    java_resources: ["test/*.textproto"],
+    java_resource_dirs: ["res"],
     libs: [
         "compatibility-host-util",
         "core_cts_test_resources",
@@ -63,7 +62,7 @@ python_binary_host {
         "hello_uprobestats.py",
         ":uprobestats-proto-files",
     ],
-    data: ["test/*.textproto"],
+    data: ["res/*.textproto"],
     libs: ["libprotobuf-python"],
     proto: {
         canonical_path_from_root: false,

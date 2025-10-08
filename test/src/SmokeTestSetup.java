@@ -68,7 +68,7 @@ public class SmokeTestSetup {
             throws Exception {
         // 1. Parse config from resources
         String textProto =
-                new Scanner(clazz.getResourceAsStream(textprotoFilename))
+                new Scanner(clazz.getResourceAsStream("/" + textprotoFilename))
                         .useDelimiter("\\A")
                         .next();
         UprobestatsConfig.Builder builder = UprobestatsConfig.newBuilder();

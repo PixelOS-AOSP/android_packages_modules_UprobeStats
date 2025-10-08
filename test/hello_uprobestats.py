@@ -21,7 +21,7 @@ def adb_root():
 
 
 def create_and_push_config_proto(name="test_slog"):
-  with resources.open_text("test", f"{name}.textproto") as textproto:
+  with resources.open_text("res", f"{name}.textproto") as textproto:
     message = text_format.Parse(
         textproto.read(), config_pb2.UprobestatsConfig()
     )
