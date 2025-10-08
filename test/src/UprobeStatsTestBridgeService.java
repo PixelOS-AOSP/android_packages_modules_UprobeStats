@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-package test;
+package com.android.uprobestats;
 
 import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
 import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
-
-import static test.SmokeTestSetup.configureStatsDAndStartUprobeStats;
-import static test.SmokeTestSetup.initializeStatsD;
-import static test.SmokeTestSetup.initializeUprobeStats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ReportUtils;
@@ -39,35 +37,24 @@ import com.android.os.StatsLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
-import com.android.uprobestats.BindServiceLockedWithBalFlagsReported;
-import com.android.uprobestats.BindServiceLockedWithBalFlagsUidsReported;
-import com.android.uprobestats.DisabledLauncherActivityUidsReported;
-import com.android.uprobestats.SetComponentEnabledSettingReported;
-import com.android.uprobestats.UprobestatsExtensionAtoms;
 
-import com.google.protobuf.ExtensionRegistry;
+import java.util.List;
 
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.List;
-
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class SmokeTestUprobeStatsBridgeService extends BaseHostJUnit4Test {
+public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
     private static final String TEST_MALWARE_SIGNAL_CONFIG = "disruptive_app.textproto";
-    private ExtensionRegistry mRegistry;
 
-    @Rule
+    @Rule(order = 0)
     public final CheckFlagsRule mCheckFlagsRule =
             HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
-    @Before
-    public void setUp() throws Exception {
-        mRegistry = initializeStatsD(getDevice());
-        initializeUprobeStats(getDevice());
-    }
+    @Rule(order = 1)
+    public final UprobeStatsTestRule mUprobeStatsTestRule =
+            new UprobeStatsTestRule(this::getDevice);
 
     @Test
     @RequiresFlagsEnabled({
@@ -113,7 +100,7 @@ public class SmokeTestUprobeStatsBridgeService extends BaseHostJUnit4Test {
 
         // See if the atom made it
         List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
         assertThat(data.size()).isEqualTo(5);
 
         SetComponentEnabledSettingReported reported =
@@ -146,8 +133,7 @@ public class SmokeTestUprobeStatsBridgeService extends BaseHostJUnit4Test {
                         .getAtom()
                         .getExtension(
                                 UprobestatsExtensionAtoms.disabledLauncherActivityUidsReported);
-        assertThat(disabledLauncherActivityUidsReported.getCallingUid())
-                .isEqualTo(2000); // shell
+        assertThat(disabledLauncherActivityUidsReported.getCallingUid()).isEqualTo(2000); // shell
         assertThat(disabledLauncherActivityUidsReported.getDisabledActivityUid()).isGreaterThan(0);
 
         BindServiceLockedWithBalFlagsReported balReported =

@@ -14,51 +14,29 @@
  * limitations under the License.
  */
 
-package test;
+package com.android.uprobestats;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
-import android.cts.statsdatom.lib.ReportUtils;
 
 import com.android.internal.os.StatsdConfigProto;
-import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.util.RunUtil;
-import com.android.uprobestats.UprobestatsExtensionAtoms;
-
-import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.TextFormat;
-
-import uprobestats.protos.Config.UprobestatsConfig;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Scanner;
 
+import uprobestats.protos.Config.UprobestatsConfig;
+
 /** Collection of utilities to set up statsd and start uprobestats for a test. */
-public class SmokeTestSetup {
+public class UprobeStatsTestSetup {
     private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
     private static final String CONFIG_NAME = "config";
     private static final String CMD_SETPROP_UPROBESTATS = "setprop ctl.start uprobestats";
-
-    /** Initializes and then sets up the statsd extension registry */
-    public static ExtensionRegistry initializeStatsD(ITestDevice device) throws Exception {
-        ConfigUtils.removeConfig(device);
-        ReportUtils.clearReports(device);
-        ExtensionRegistry registry = ExtensionRegistry.newInstance();
-        UprobestatsExtensionAtoms.registerAllExtensions(registry);
-        FrameworkExtensionAtoms.registerAllExtensions(registry);
-        return registry;
-    }
-
-    /** Cleans up any pre-existing uprobestats execution. */
-    public static void initializeUprobeStats(ITestDevice device) throws Exception {
-        device.deleteFile(CONFIG_DIR + CONFIG_NAME);
-        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-        device.executeShellCommand("killall uprobestats");
-    }
 
     /**
      * Starts UprobeStats with the given config and configures statsd to collect the given atomIds.

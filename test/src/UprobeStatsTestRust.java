@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package test;
+package com.android.uprobestats;
 
 import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
 import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
@@ -23,13 +23,11 @@ import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRU
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
 
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
-
-import static test.SmokeTestSetup.configureStatsDAndStartUprobeStats;
-import static test.SmokeTestSetup.initializeStatsD;
-import static test.SmokeTestSetup.initializeUprobeStats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
@@ -44,16 +42,6 @@ import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
-import com.android.uprobestats.AndroidGraphicsBitmapAllocationSnapshot;
-import com.android.uprobestats.TestUprobeStatsAtomReported;
-import com.android.uprobestats.UprobestatsExtensionAtoms;
-
-import com.google.protobuf.ExtensionRegistry;
-
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -61,23 +49,24 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class SmokeTestRustOnly extends BaseHostJUnit4Test {
+public class UprobeStatsTestRust extends BaseHostJUnit4Test {
     private static final String BITMAP_ALLOCATION_CONFIG = "bitmap.textproto";
     private static final String BITMAP_ALLOCATION_SNAPSHOT_CONFIG = "bitmap_snapshot.textproto";
     private static final String BITMAP_TESTAPP_PACKAGE_NAME = "com.android.uprobestats.bitmap";
     private static final String BINDER_TRANSACTION_CONFIG = "binder.textproto";
-    private ExtensionRegistry mRegistry;
 
-    @Rule
+    @Rule(order = 0)
     public final CheckFlagsRule mCheckFlagsRule =
             HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
-    @Before
-    public void setUp() throws Exception {
-        mRegistry = initializeStatsD(getDevice());
-        initializeUprobeStats(getDevice());
-    }
+    @Rule(order = 1)
+    public final UprobeStatsTestRule mUprobeStatsTestRule =
+            new UprobeStatsTestRule(this::getDevice);
 
     @Test
     @RequiresFlagsEnabled({
@@ -112,7 +101,8 @@ public class SmokeTestRustOnly extends BaseHostJUnit4Test {
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                    ReportUtils.getEventMetricDataList(
+                            getDevice(), mUprobeStatsTestRule.getRegistry());
             assertThat(data.size()).isGreaterThan(0);
             boolean anyMatch =
                     data.stream()
@@ -183,15 +173,15 @@ public class SmokeTestRustOnly extends BaseHostJUnit4Test {
             // Allow UprobeStats/StatsD time to collect metric
             RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
-            getDevice().executeShellCommand("dumpsys meminfo " +
-                    "com.android.uprobestats.bitmap");
+            getDevice().executeShellCommand("dumpsys meminfo " + "com.android.uprobestats.bitmap");
 
             // Wait until the uprobestats process exits.
             waitForUprobeStatsToExit(35);
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                    ReportUtils.getEventMetricDataList(
+                            getDevice(), mUprobeStatsTestRule.getRegistry());
             assertThat(data.size()).isGreaterThan(0);
             Stream<AndroidGraphicsBitmapAllocationSnapshot> randomSampleSnapshot =
                     data.stream()
@@ -283,15 +273,15 @@ public class SmokeTestRustOnly extends BaseHostJUnit4Test {
             // Allow UprobeStats/StatsD time to collect metric
             RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
-            getDevice().executeShellCommand("dumpsys meminfo " +
-                    "com.android.uprobestats.bitmap");
+            getDevice().executeShellCommand("dumpsys meminfo " + "com.android.uprobestats.bitmap");
 
             // Wait until the uprobestats process exits.
             waitForUprobeStatsToExit(35);
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                    ReportUtils.getEventMetricDataList(
+                            getDevice(), mUprobeStatsTestRule.getRegistry());
             assertThat(data.size()).isGreaterThan(0);
             boolean anyMatch =
                     data.stream()
@@ -341,7 +331,7 @@ public class SmokeTestRustOnly extends BaseHostJUnit4Test {
 
         // See if the atom made it
         List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
         assertThat(data.size()).isGreaterThan(0);
 
         TestUprobeStatsAtomReported reported =

@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-package test;
+package com.android.uprobestats;
 
 import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
 import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
+
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
 
-import static test.SmokeTestSetup.configureStatsDAndStartUprobeStats;
-import static test.SmokeTestSetup.initializeStatsD;
-import static test.SmokeTestSetup.initializeUprobeStats;
-
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
+
 import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
@@ -41,21 +40,16 @@ import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
-import com.android.uprobestats.TestUprobeStatsAtomReported;
-import com.android.uprobestats.UprobestatsExtensionAtoms;
 
-import com.google.protobuf.ExtensionRegistry;
+import java.util.List;
 
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.List;
-
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class SmokeTest extends BaseHostJUnit4Test {
+public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     private static final String BATTERY_STATS_CONFIG_OATDUMP =
             "test_bss_setBatteryState_oatdump.textproto";
@@ -69,17 +63,12 @@ public class SmokeTest extends BaseHostJUnit4Test {
     private static final String CMD_SETPROP_UPROBESTATS = "setprop ctl.start uprobestats";
     private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
 
-    private ExtensionRegistry mRegistry;
-
-    @Rule
+    @Rule(order = 0)
     public final CheckFlagsRule mCheckFlagsRule =
             HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
-    @Before
-    public void setUp() throws Exception {
-        mRegistry = initializeStatsD(getDevice());
-        initializeUprobeStats(getDevice());
-    }
+    @Rule(order = 1)
+    public final UprobeStatsTestRule mUprobeStatsTestRule = new UprobeStatsTestRule(this::getDevice);
 
     @Test
     @RequiresFlagsDisabled(FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
@@ -128,7 +117,7 @@ public class SmokeTest extends BaseHostJUnit4Test {
 
         // See if the atom made it
         List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
         assertThat(data.size()).isEqualTo(1);
         TestUprobeStatsAtomReported reported =
                 data.get(0)
@@ -156,7 +145,7 @@ public class SmokeTest extends BaseHostJUnit4Test {
 
         // See if the atom made it
         List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
         assertThat(data.size()).isGreaterThan(0);
         boolean anyMatch =
                 data.stream()
@@ -193,7 +182,7 @@ public class SmokeTest extends BaseHostJUnit4Test {
 
         // See if the atom made it
         List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mRegistry);
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
         assertThat(data.size()).isGreaterThan(0);
         boolean anyMatch =
                 data.stream()
