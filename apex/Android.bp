@@ -29,7 +29,10 @@ android_app_certificate {
 
 prebuilt_etc {
     name: "com.android.uprobestats.init.rc",
-    src: "UprobeStats-mainline.rc",
+    src: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: "UprobeStats-service-mainline.rc",
+        default: "UprobeStats-mainline.rc",
+    }),
     filename: "init.rc",
     installable: false,
 }

@@ -97,7 +97,7 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
             RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
             // Wait until the uprobestats process exits.
-            waitForUprobeStatsToExit(35);
+            waitForUprobeStatsToExit(95);
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
@@ -176,7 +176,7 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
             getDevice().executeShellCommand("dumpsys meminfo " + "com.android.uprobestats.bitmap");
 
             // Wait until the uprobestats process exits.
-            waitForUprobeStatsToExit(35);
+            waitForUprobeStatsToExit(95);
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
@@ -276,7 +276,7 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
             getDevice().executeShellCommand("dumpsys meminfo " + "com.android.uprobestats.bitmap");
 
             // Wait until the uprobestats process exits.
-            waitForUprobeStatsToExit(35);
+            waitForUprobeStatsToExit(95);
 
             // See if the atom made it
             List<StatsLog.EventMetricData> data =
