@@ -10,8 +10,9 @@ use std::{
     io::Read,
     process::exit,
     str::FromStr,
+    sync::{Arc, Mutex},
 };
-use uprobestats_rs::{is_user_build, task, task::GlobalState};
+use uprobestats_rs::{is_user_build, task};
 
 fn main() {
     atrace_begin(AtraceTag::App, "uprobestats_rs::main");
@@ -48,19 +49,23 @@ fn main_impl() -> Result<()> {
     ProcessState::start_thread_pool();
     trace!("initial flag check done and tread pool started");
 
-    let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
-
-    let (task, probes) = task::resolve_config(&config_bytes)?;
-    let state = GlobalState::new();
-    let mut state = state.lock().unwrap();
-    task::update_active_maps(&mut state, &task)?;
-    task::execute(&task, &probes);
-    let last_task = task::cleanup_active_maps(&mut state, &task);
-
-    // At this point only one task ever runs at a time. If the this is false, something has gone horribly wrong.
-    assert!(last_task, "last task did not complete");
+    handle_tasks()?;
 
     debug!("done");
+
+    Ok(())
+}
+
+fn handle_tasks() -> Result<()> {
+    let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
+    let (task, probes) = task::resolve_config(&config_bytes)?;
+
+    let state = Arc::new(Mutex::new(None));
+    let mut state = state.lock().unwrap();
+
+    task::update_polled_bpf_maps(&mut state, &task)?;
+    task::execute(&task, &probes);
+    task::cleanup_polled_bpf_maps(&mut state, &task);
 
     Ok(())
 }

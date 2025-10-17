@@ -7,6 +7,8 @@ mod process;
 pub mod task;
 #[cfg(feature = "bridge-service")]
 mod uprobestats_bridge_service;
+#[cfg(feature = "binder-service")]
+pub mod uprobestats_service;
 
 use rustutils::android::system_properties;
 use std::time::{Duration, Instant};

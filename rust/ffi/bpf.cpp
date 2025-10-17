@@ -70,23 +70,24 @@ int bpfPerfEventOpen(const char *filename, int offset, int pid,
   attr.type = pmu_type;
   attr.config1 = android::bpf::ptr_to_u64((void *)filename);
   attr.exclude_kernel = true;
-  int perfEventFd = syscall(__NR_perf_event_open, &attr, pid, /*cpu=*/-1,
-                            /* group_fd=*/-1, PERF_FLAG_FD_CLOEXEC);
+  android::base::unique_fd perfEventFd(syscall(__NR_perf_event_open, &attr, pid,
+                                                 /*cpu=*/-1,
+                                                 /* group_fd=*/-1, PERF_FLAG_FD_CLOEXEC));
   if (perfEventFd < 0) {
     LOG(ERROR) << "syscall(__NR_perf_event_open) failed. "
-               << "perfEventFd: " << perfEventFd << " "
+               << "perfEventFd: " << perfEventFd.get() << " "
                << "error: " << strerror(errno);
     return -1;
   }
-  if (ioctl(perfEventFd, PERF_EVENT_IOC_SET_BPF, int(bpfProgramFd)) < 0) {
+  if (ioctl(perfEventFd.get(), PERF_EVENT_IOC_SET_BPF, int(bpfProgramFd)) < 0) {
     LOG(ERROR) << "PERF_EVENT_IOC_SET_BPF failed. " << strerror(errno);
     return -1;
   }
-  if (ioctl(perfEventFd, PERF_EVENT_IOC_ENABLE, 0) < 0) {
+  if (ioctl(perfEventFd.get(), PERF_EVENT_IOC_ENABLE, 0) < 0) {
     LOG(ERROR) << "PERF_EVENT_IOC_ENABLE failed. " << strerror(errno);
     return -1;
   }
-  return 0;
+  return perfEventFd.release();
 }
 
 struct BpfMapHandle {

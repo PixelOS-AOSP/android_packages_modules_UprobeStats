@@ -17,7 +17,12 @@
 //! Functions to interact with BPF through C FFI.
 
 use anyhow::{ensure, Result};
-use std::{ffi::c_void, fmt::Debug, mem::MaybeUninit};
+use std::{
+    ffi::c_void,
+    fmt::Debug,
+    mem::MaybeUninit,
+    os::fd::{FromRawFd, OwnedFd},
+};
 use uprobestats_bpf_bindgen::{
     bpfMapClose, bpfMapDeleteElem, bpfMapGetFirstKey, bpfMapLookupElem, bpfMapOpenExclusiveRW,
     bpfMapUpdateElem, bpfPerfEventOpen, pollRingBuf, BpfMapHandle,
@@ -67,19 +72,21 @@ unsafe extern "C" fn callback<T: Copy + Debug>(value: *const c_void, cookie: *mu
 
 /// Attaches the eBPF program specified at `bpf_program_path`
 /// to the user space program for process `pid`, located by `filename` and `offset`.
+/// Returns an `OwnedFd` that represents the perf event, and will be closed when the
+/// `OwnedFd` is dropped.
 pub fn bpf_perf_event_open(
     filename: String,
     offset: i32,
     pid: i32,
     bpf_program_path: String,
-) -> Result<()> {
+) -> Result<OwnedFd> {
     let filename = c_string(&filename)?;
     let bpf_program_path = c_string(&bpf_program_path)?;
-    let res =
-        // SAFETY: `filename` and `bpf_program_path` are valid by virtue of being derived from a `CString`.
-        unsafe { bpfPerfEventOpen(filename.as_ptr(), offset, pid, bpf_program_path.as_ptr()) };
-    ensure!(res == 0, "Failed to attach BPF. Error code: {}", res);
-    Ok(())
+    // SAFETY: `filename` and `bpf_program_path` are valid by virtue of being derived from a `CString`.
+    let fd = unsafe { bpfPerfEventOpen(filename.as_ptr(), offset, pid, bpf_program_path.as_ptr()) };
+    ensure!(fd >= 0, "Failed to attach BPF. Error code: {}", fd);
+    // SAFETY: `bpfPerfEventOpen` returns a valid file descriptor on success. We have checked that the operation was successful.
+    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 /// Flags for `bpf_map_update_elem`.
