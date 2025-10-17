@@ -8,27 +8,42 @@ use crate::{
     guardrail, is_user_build,
 };
 use anyhow::{anyhow, bail, ensure, Result};
+#[cfg(feature = "binder-service")]
+use binder::LazyServiceGuard;
 use log::{debug, error, trace};
 use std::{
     collections::HashSet,
     ffi::c_ulong,
-    sync::{Arc, Mutex, MutexGuard},
+    os::fd::{AsRawFd, OwnedFd},
+    sync::MutexGuard,
     thread,
     time::Duration,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
 
-/// Global state for uprobestats execution.
-#[derive(Default)]
-pub struct GlobalState {
-    // The set of BPF map paths currently being polled. Used to prevent duplicate tasks.
-    active_maps: HashSet<String>,
+/// The global state for the uprobestats daemon process.
+/// - Some(ActiveState): tracks metadata when there are tasks currently running.
+/// - None: means there are no tasks currently running, and the service may be stopped.
+pub type GlobalState = Option<ActiveState>;
+/// The active state for the uprobestats daemon process.
+///
+/// This is only set when there are tasks currently running.
+pub struct ActiveState {
+    polled_bpf_maps: HashSet<String>,
+    #[cfg(feature = "binder-service")]
+    _lazy_service_guard: LazyServiceGuard,
 }
 
-impl GlobalState {
-    /// Constructor for a shared, global instance of GlobalState.
-    pub fn new() -> Arc<Mutex<GlobalState>> {
-        Arc::new(Mutex::new(GlobalState { active_maps: HashSet::new() }))
+impl ActiveState {
+    /// Creates a new instance of ActiveState.
+    ///
+    /// Should only be called when there are no existing tasks running (as in, `GlobalState` is `None`)
+    pub fn new(polled_bpf_maps: HashSet<String>) -> Self {
+        ActiveState {
+            polled_bpf_maps,
+            #[cfg(feature = "binder-service")]
+            _lazy_service_guard: LazyServiceGuard::new(),
+        }
     }
 }
 
@@ -53,15 +68,27 @@ pub fn resolve_config(config_bytes: &[u8]) -> Result<(ResolvedTask, Vec<Resolved
 
 /// Step 2: checks for conflicts with other tasks, and updates the global state accordingly.
 ///
-/// Once this step completes, step 4 (cleaning up the active maps) *must* also complete.
-pub fn update_active_maps(state: &mut MutexGuard<GlobalState>, task: &ResolvedTask) -> Result<()> {
+/// Once this step completes, step 4 (cleaning up the polled maps) *must* also complete.
+pub fn update_polled_bpf_maps(
+    state: &mut MutexGuard<GlobalState>,
+    task: &ResolvedTask,
+) -> Result<()> {
     let new_maps: HashSet<String> = task.bpf_map_paths.iter().cloned().collect();
-    let conflicts: Vec<_> = new_maps.intersection(&state.active_maps).collect();
+
+    let polled_bpf_maps = match &mut **state {
+        None => {
+            **state = Some(ActiveState::new(new_maps));
+            return Ok(());
+        }
+        Some(ref mut active_state) => &mut active_state.polled_bpf_maps,
+    };
+
+    let conflicts: Vec<_> = new_maps.intersection(polled_bpf_maps).collect();
     if !conflicts.is_empty() {
         bail!("BPF maps already in use: {:?}", conflicts);
     }
 
-    state.active_maps.extend(new_maps);
+    polled_bpf_maps.extend(new_maps);
     Ok(())
 }
 
@@ -151,24 +178,31 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
 fn attach_probes_and_poll_maps(task: &ResolvedTask, probes: &[ResolvedProbe]) -> Result<()> {
-    for probe in probes {
-        debug!(
-            "attaching bpf {} to {} at {}",
-            probe.bpf_program_path, &probe.filename, &probe.offset
-        );
-        bpf_perf_event_open(
-            probe.filename.clone(),
-            probe.offset,
-            task.pid,
-            probe.bpf_program_path.clone(),
-        )?;
-        trace!(
-            "successfully attached bpf {} to {} at {}",
-            probe.bpf_program_path,
-            &probe.filename,
-            &probe.offset
-        );
-    }
+    // keep the fds in scope so they don't get closed immediately. They will be closed when they
+    // go out of scope at the end of this function.
+    let _perf_event_fds: Vec<OwnedFd> = probes
+        .iter()
+        .map(|probe| -> Result<OwnedFd> {
+            debug!(
+                "attaching bpf {} to {} at {}",
+                probe.bpf_program_path, &probe.filename, &probe.offset
+            );
+            let fd = bpf_perf_event_open(
+                probe.filename.clone(),
+                probe.offset,
+                task.pid,
+                probe.bpf_program_path.clone(),
+            )?;
+            trace!(
+                "successfully attached bpf {} to {} at {}. fd: {}",
+                probe.bpf_program_path,
+                &probe.filename,
+                &probe.offset,
+                fd.as_raw_fd(),
+            );
+            Ok(fd)
+        })
+        .collect::<Result<Vec<OwnedFd>>>()?;
 
     let duration = Duration::from_secs(task.duration_seconds.try_into()?);
     let errors = thread::scope(|s| {
@@ -216,13 +250,24 @@ fn cleanup_binder_transaction_filters(
 }
 
 /// Step 4: cleans up the global state.
-/// - removes the BPF maps from the active set
+/// - removes the BPF maps from the actively polled set
+/// - if no more maps are being polled, removes the active state entirely.
 ///
-/// Returns true if this was the last task to complete.
-pub fn cleanup_active_maps(state: &mut MutexGuard<GlobalState>, task: &ResolvedTask) -> bool {
+pub fn cleanup_polled_bpf_maps(state: &mut MutexGuard<GlobalState>, task: &ResolvedTask) {
+    let polled_bpf_maps = match &mut **state {
+        None => {
+            panic!("cleanup_active_maps called with no active state. This should never happen.");
+        }
+        Some(ref mut active_state) => &mut active_state.polled_bpf_maps,
+    };
+
     for map_path in &task.bpf_map_paths {
-        state.active_maps.remove(map_path);
+        polled_bpf_maps.remove(map_path);
     }
 
-    state.active_maps.is_empty()
+    trace!("remaining active maps: {:?}", polled_bpf_maps);
+
+    if polled_bpf_maps.is_empty() {
+        **state = None;
+    }
 }

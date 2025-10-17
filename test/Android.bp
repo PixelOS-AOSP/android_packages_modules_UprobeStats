@@ -5,7 +5,10 @@ package {
 
 filegroup {
     name: "uprobestats-test-sources",
-    srcs: ["src/**/*.java"],
+    srcs: ["src/*.java"] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["src/binder_service/*.java"],
+        default: ["src/legacy/*.java"],
+    }),
     exclude_srcs: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: [],
         false: [

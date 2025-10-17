@@ -31,11 +31,11 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-public class UprobeStatsTestRule implements TestRule {
-    private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
-    private static final String CONFIG_NAME = "config";
+public abstract class AbstractUprobeStatsTestRule implements TestRule {
+    static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
+    static final String CONFIG_NAME = "config";
 
-    public UprobeStatsTestRule(Supplier<ITestDevice> deviceSupplier) {
+    public AbstractUprobeStatsTestRule(Supplier<ITestDevice> deviceSupplier) {
         mDeviceSupplier = deviceSupplier;
     }
 
@@ -70,9 +70,5 @@ public class UprobeStatsTestRule implements TestRule {
     }
 
     /** Cleans up any pre-existing uprobestats execution. */
-    private static void initializeUprobeStats(ITestDevice device) throws Exception {
-        device.deleteFile(CONFIG_DIR + CONFIG_NAME);
-        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-        device.executeShellCommand("killall uprobestats");
-    }
+    abstract void initializeUprobeStats(ITestDevice device) throws Exception;
 }

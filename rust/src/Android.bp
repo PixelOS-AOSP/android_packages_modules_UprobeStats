@@ -19,10 +19,14 @@ rust_defaults {
         "libserde_json",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
+        "uprobestats-service-aidl-rust",
     ],
     shared_libs: ["libuprobestats_bpf_cc"],
     features: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: ["bridge-service"],
+        default: [],
+    }) + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["binder-service"],
         default: [],
     }),
 }

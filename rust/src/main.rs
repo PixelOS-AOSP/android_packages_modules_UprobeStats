@@ -1,17 +1,28 @@
 //! UProbestats executable.
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{ensure, Result};
 use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::ProcessState;
 use log::{debug, error, trace, LevelFilter};
 use rustutils::android::system_properties;
 use std::{
     cmp::{max, min},
-    fs::File,
-    io::Read,
     process::exit,
     str::FromStr,
+    sync::{Arc, Mutex},
 };
-use uprobestats_rs::{is_user_build, task, task::GlobalState};
+use uprobestats_rs::is_user_build;
+#[cfg(not(feature = "binder-service"))]
+use {
+    anyhow::anyhow,
+    std::{fs::File, io::Read},
+    uprobestats_rs::task,
+};
+#[cfg(feature = "binder-service")]
+use {
+    binder::{register_lazy_service, BinderFeatures},
+    uprobestats_rs::uprobestats_service::{UprobeStatsService, UPROBESTATS_SERVICE_NAME},
+    uprobestats_service_aidl::aidl::com::android::uprobestats::IUprobeStatsService::BnUprobeStatsService,
+};
 
 fn main() {
     atrace_begin(AtraceTag::App, "uprobestats_rs::main");
@@ -48,23 +59,46 @@ fn main_impl() -> Result<()> {
     ProcessState::start_thread_pool();
     trace!("initial flag check done and tread pool started");
 
-    let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
-
-    let (task, probes) = task::resolve_config(&config_bytes)?;
-    let state = GlobalState::new();
-    let mut state = state.lock().unwrap();
-    task::update_active_maps(&mut state, &task)?;
-    task::execute(&task, &probes);
-    let last_task = task::cleanup_active_maps(&mut state, &task);
-
-    // At this point only one task ever runs at a time. If the this is false, something has gone horribly wrong.
-    assert!(last_task, "last task did not complete");
+    handle_tasks()?;
 
     debug!("done");
 
     Ok(())
 }
 
+#[cfg(not(feature = "binder-service"))]
+fn handle_tasks() -> Result<()> {
+    let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
+    let (task, probes) = task::resolve_config(&config_bytes)?;
+
+    let state = Arc::new(Mutex::new(None));
+    let mut state = state.lock().unwrap();
+
+    task::update_polled_bpf_maps(&mut state, &task)?;
+    task::execute(&task, &probes);
+    task::cleanup_polled_bpf_maps(&mut state, &task);
+
+    Ok(())
+}
+
+#[cfg(feature = "binder-service")]
+fn handle_tasks() -> Result<()> {
+    let state = Arc::new(Mutex::new(None));
+    let service = BnUprobeStatsService::new_binder(
+        UprobeStatsService::new(state.clone()),
+        BinderFeatures::default(),
+    );
+
+    register_lazy_service(UPROBESTATS_SERVICE_NAME, service.as_binder())?;
+
+    debug!("registered service - joining thread pool");
+    ProcessState::join_thread_pool();
+    trace!("join_thread_pool done");
+
+    Ok(())
+}
+
+#[cfg(not(feature = "binder-service"))]
 fn file_path_to_bytes(path: &str) -> Result<Vec<u8>> {
     let mut file = File::open(path).map_err(|e| anyhow!("Failed to open file: {e}"))?;
     let mut buffer = Vec::new();

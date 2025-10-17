@@ -55,8 +55,18 @@ libuprobestats_client_cc_library_shared {
         "-Wno-enum-compare",
         "-Wno-unused-function",
     ],
-    srcs: ["uprobestats_client.cpp"],
-    shared_libs: ["libbase"],
+    srcs: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["uprobestats_service_client.cpp"],
+        default: ["uprobestats_client.cpp"],
+    }),
+    shared_libs: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: [
+            "libbase",
+            "libbinder_ndk",
+            "uprobestats-service-aidl-ndk",
+        ],
+        default: ["libbase"],
+    }),
     export_include_dirs: ["include"],
     header_libs: ["libcutils_headers"],
 }
