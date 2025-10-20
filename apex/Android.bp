@@ -29,7 +29,10 @@ android_app_certificate {
 
 prebuilt_etc {
     name: "com.android.uprobestats.init.rc",
-    src: "UprobeStats-mainline.rc",
+    src: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: "UprobeStats-service-mainline.rc",
+        default: "UprobeStats-mainline.rc",
+    }),
     filename: "init.rc",
     installable: false,
 }
@@ -62,7 +65,7 @@ apex {
         "GenericInstrumentation.o",
         "ProcessManagement.o",
         "DisruptiveApp.o",
-        "BinderExecTransactInternal.o",
+        "Binder.o",
     ],
 
     native_shared_libs: [
@@ -77,4 +80,18 @@ apex {
         "Android-Apache-2.0",
         "opensourcerequest",
     ],
+    systemserverclasspath_fragments: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: ["com.android.uprobestats-systemserverclasspath-fragment"],
+        false: [],
+    }),
+}
+
+systemserverclasspath_fragment {
+    enabled: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: true,
+        false: false,
+    }),
+    name: "com.android.uprobestats-systemserverclasspath-fragment",
+    standalone_contents: ["service-uprobestats-bridge"],
+    apex_available: ["com.android.uprobestats"],
 }

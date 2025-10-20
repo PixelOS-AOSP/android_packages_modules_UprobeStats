@@ -20,9 +20,19 @@
 
 __BEGIN_DECLS
 
+typedef struct BpfMapHandle BpfMapHandle;
+
 int pollRingBuf(const char *mapPath, int timeoutMs, size_t valueSize,
                 void (*callback)(const void *, void *), void *cookie);
 int bpfPerfEventOpen(const char *filename, int offset, int pid,
                      const char *bpfProgramPath);
+
+int bpfMapOpenExclusiveRW(const char *path, BpfMapHandle **handle_out);
+void bpfMapClose(BpfMapHandle *handle);
+int bpfMapUpdateElem(BpfMapHandle *handle, const void *key, const void *value,
+                     uint64_t flags);
+int bpfMapLookupElem(BpfMapHandle *handle, const void *key, void *value);
+int bpfMapDeleteElem(BpfMapHandle *handle, const void *key);
+int bpfMapGetFirstKey(BpfMapHandle *handle, void *firstKey);
 
 __END_DECLS

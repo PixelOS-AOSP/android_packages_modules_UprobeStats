@@ -36,8 +36,8 @@ bpf {
 }
 
 bpf {
-    name: "BinderExecTransactInternal.o",
-    srcs: ["BinderExecTransactInternal.c"],
+    name: "Binder.o",
+    srcs: ["Binder.c"],
     include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
     sub_dir: "uprobestats",
 }

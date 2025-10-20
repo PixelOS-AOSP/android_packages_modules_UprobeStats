@@ -1,6 +1,7 @@
-//! Validates uprobestats config protos and adds additional info.
+//! Resolves UprobestatsConfig protos into a list of concrete probes to be attached.
 use crate::prefix_bpf;
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, bail, ensure, Result};
+use binder::ExceptionCode;
 use dynamic_instrumentation_manager::{
     ExecutableMethodFileOffsets, MethodDescriptor, TargetProcess,
 };
@@ -8,9 +9,9 @@ use log::{debug, warn};
 use protobuf::Message;
 use std::clone::Clone;
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::Read;
+use std::thread;
 use std::time::Duration;
+use uprobestats_mainline_flags_rust as uprobestats_flags;
 use uprobestats_proto::config::{
     uprobestats_config::{
         task::{ProbeConfig, TargetProcessSelection},
@@ -21,9 +22,51 @@ use uprobestats_proto::config::{
 
 use crate::{art::get_method_offset_from_oatdump, process::resolve_process};
 
+pub(crate) fn get_executable_method_file_offsets_with_retry(
+    target_process: &TargetProcess,
+    method_descriptor: &MethodDescriptor,
+) -> Result<Option<ExecutableMethodFileOffsets>> {
+    if !uprobestats_flags::use_process_observer_api() {
+        return ExecutableMethodFileOffsets::get(target_process, method_descriptor)
+            .map_err(|e| anyhow!("Failed to get executable method file offsets: {}", e));
+    }
+
+    let mut retries = 0;
+    const MAX_RETRIES: u32 = 5;
+    let mut backoff = Duration::from_millis(10);
+
+    loop {
+        match ExecutableMethodFileOffsets::get(target_process, method_descriptor) {
+            Ok(offsets) => return Ok(offsets),
+            Err(status) => {
+                if retries >= MAX_RETRIES {
+                    bail!("Failed after {} retries, last error: {}", MAX_RETRIES, status);
+                }
+                if status.exception_code() != ExceptionCode::SERVICE_SPECIFIC {
+                    bail!("Unexpected status: {status}");
+                }
+                if status.service_specific_error() != ExceptionCode::ILLEGAL_STATE as i32 {
+                    bail!("Unexpected service specific error: {status}");
+                }
+                log::warn!(
+                    "Failed to get method offsets (attempt {}/{}), retrying in {:?}: {}",
+                    retries + 1,
+                    MAX_RETRIES,
+                    backoff,
+                    status
+                );
+                thread::sleep(backoff);
+                retries += 1;
+                backoff *= 2;
+            }
+        }
+    }
+}
+
 /// Validated probe proto + probe target's code filename and offset.
 pub struct ResolvedProbe {
-    _probe: ProbeConfig,
+    /// The probe proto.
+    pub probe: ProbeConfig,
     /// The filename of the code that contains the probe's method.
     pub filename: String,
     /// The offset of the probe's method in the code file.
@@ -94,85 +137,85 @@ pub fn resolve_single_task(config: UprobestatsConfig) -> Result<ResolvedTask> {
 
 /// Validates a single probe proto and adds additional info.
 pub fn resolve_probes(resolved_task: &ResolvedTask) -> Result<Vec<ResolvedProbe>> {
-    let resolved_probes = resolved_task.task.probe_configs.clone().into_iter().map(|probe| {
-        let bpf_name = probe.bpf_name.as_ref().ok_or_else(|| anyhow!("bpf_name is required"))?;
-        ensure!(is_bpf_file_enabled(bpf_name), "{} is disabled by flag", bpf_name);
-        let bpf_program_path = prefix_bpf(bpf_name);
-        if let Some(ref fully_qualified_class_name) = probe.fully_qualified_class_name {
-            debug!("using getExecutableMethodFileOffsets to retrieve offsets");
-            let method_name =
-                probe.method_name.clone().ok_or_else(|| anyhow!("method_name is required"))?;
-            let fully_qualified_parameters = probe.fully_qualified_parameters.clone();
-            let offsets = ExecutableMethodFileOffsets::get(
-                &TargetProcess::new(
-                    resolved_task.uid.try_into()?,
-                    resolved_task.pid,
-                    &resolved_task.process_name,
-                )?,
-                &MethodDescriptor::new(
-                    &fully_qualified_class_name.clone(),
-                    &method_name,
-                    fully_qualified_parameters,
-                )?,
-            )?;
-            let offsets = offsets.ok_or_else(|| {
-                anyhow!("Failed to get offsets for class: {fully_qualified_class_name}")
-            })?;
-            let offset: i32 = offsets
-                .get_method_offset()
-                .try_into()
-                .map_err(|e| anyhow!("Failed to convert method offset to i32: {e}"))?;
-            Ok(ResolvedProbe {
-                _probe: probe,
-                bpf_program_path,
-                offset,
-                filename: offsets.get_container_path(),
-            })
-        } else {
-            debug!("using oatdump to retrieve offsets");
-            let method_signature =
-                probe.method_signature.clone().ok_or(anyhow!("method_signature is required"))?;
-            let mut offset: i32 = 0;
-            let mut found_file_path: String = "".to_string();
-            for file_path in &probe.file_paths {
-                let found_offset = get_method_offset_from_oatdump(file_path, &method_signature)
-                    .inspect_err(|e| {
-                        warn!("Failed to get offset for {method_signature} from {file_path}: {e}")
-                    })
-                    .ok()
-                    .flatten()
-                    .unwrap_or(0);
-
-                if found_offset > 0 {
-                    found_file_path = file_path.to_string();
-                    offset = found_offset;
-                    break;
-                }
-            }
-            if offset > 0 {
+    resolved_task
+        .task
+        .probe_configs
+        .clone()
+        .into_iter()
+        .map(|probe| {
+            let bpf_name =
+                probe.bpf_name.as_ref().ok_or_else(|| anyhow!("bpf_name is required"))?;
+            ensure!(is_bpf_file_enabled(bpf_name), "{} is disabled by flag", bpf_name);
+            let bpf_program_path = prefix_bpf(bpf_name);
+            if let Some(ref fully_qualified_class_name) = probe.fully_qualified_class_name {
+                debug!("using getExecutableMethodFileOffsets to retrieve offsets");
+                let method_name =
+                    probe.method_name.clone().ok_or_else(|| anyhow!("method_name is required"))?;
+                let fully_qualified_parameters = probe.fully_qualified_parameters.clone();
+                let offsets = get_executable_method_file_offsets_with_retry(
+                    &TargetProcess::new(
+                        resolved_task.uid.try_into()?,
+                        resolved_task.pid,
+                        &resolved_task.process_name,
+                    )?,
+                    &MethodDescriptor::new(
+                        &fully_qualified_class_name.clone(),
+                        &method_name,
+                        fully_qualified_parameters,
+                    )?,
+                )?;
+                let offsets = offsets.ok_or_else(|| {
+                    anyhow!("Failed to get offsets for class: {fully_qualified_class_name}")
+                })?;
+                let offset: i32 = offsets
+                    .get_method_offset()
+                    .try_into()
+                    .map_err(|e| anyhow!("Failed to convert method offset to i32: {e}"))?;
                 Ok(ResolvedProbe {
-                    _probe: probe,
+                    probe,
                     bpf_program_path,
-                    filename: found_file_path,
                     offset,
+                    filename: offsets.get_container_path(),
                 })
             } else {
-                Err(anyhow!("Failed to get offset for method: {method_signature}"))
-            }
-        }
-    });
+                debug!("using oatdump to retrieve offsets");
+                let method_signature = probe
+                    .method_signature
+                    .clone()
+                    .ok_or(anyhow!("method_signature is required"))?;
+                let mut offset: i32 = 0;
+                let mut found_file_path: String = "".to_string();
+                for file_path in &probe.file_paths {
+                    let found_offset = get_method_offset_from_oatdump(file_path, &method_signature)
+                        .inspect_err(|e| {
+                            warn!(
+                                "Failed to get offset for {method_signature} from {file_path}: {e}"
+                            )
+                        })
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0);
 
-    resolved_probes.collect()
+                    if found_offset > 0 {
+                        found_file_path = file_path.to_string();
+                        offset = found_offset;
+                        break;
+                    }
+                }
+                if offset > 0 {
+                    Ok(ResolvedProbe { probe, bpf_program_path, filename: found_file_path, offset })
+                } else {
+                    Err(anyhow!("Failed to get offset for method: {method_signature}"))
+                }
+            }
+        })
+        .collect::<Result<Vec<_>>>()
 }
 
-/// Reads a config file and parses it into a UprobestatsConfig proto.
-pub fn read_config(config_path: &str) -> Result<UprobestatsConfig> {
-    let mut file =
-        File::open(config_path).map_err(|e| anyhow!("Failed to open config file: {e}"))?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).map_err(|e| anyhow!("Failed to read config file: {e}"))?;
-    UprobestatsConfig::parse_from_bytes(&buffer)
-        .map_err(|e| anyhow!("Failed to parse config file: {e}"))
+/// Parses a byte array into a UprobestatsConfig proto.
+pub fn read_config_from_bytes(config_bytes: &[u8]) -> Result<UprobestatsConfig> {
+    UprobestatsConfig::parse_from_bytes(config_bytes)
+        .map_err(|e| anyhow!("Failed to parse config from bytes: {e}"))
 }
 
 fn is_bpf_file_enabled(bpf_prog_or_map_name: &str) -> bool {
@@ -186,8 +229,10 @@ fn is_bpf_file_enabled(bpf_prog_or_map_name: &str) -> bool {
     } else if bpf_prog_or_map_name.contains("BitmapAllocation") {
         uprobestats_mainline_flags_rust::enable_bitmap_instrumentation()
             || uprobestats_mainline_flags_rust::enable_bitmap_snapshot()
-    } else if bpf_prog_or_map_name.contains("BinderExecTransactInternal") {
-        uprobestats_mainline_flags_rust::enable_binder_transaction_poc()
+    } else if bpf_prog_or_map_name.contains("Binder") {
+        uprobestats_mainline_flags_rust::enable_binder_transaction()
+    } else if bpf_prog_or_map_name.contains("prog_BitmapAllocation_uprobe_create_scaled_bitmap") {
+        uprobestats_mainline_flags_rust::enable_bitmap_scaled_instrumentation()
     } else {
         true
     }

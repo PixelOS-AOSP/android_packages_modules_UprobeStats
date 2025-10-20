@@ -100,10 +100,17 @@ struct ProcessChange {
   char process_name[256];
 };
 
-struct BitmapAllocation {
+const __u32 K_BITMAP_EVENT_TYPE_ALLOCATION = 0;
+const __u32 K_BITMAP_EVENT_TYPE_DEALLOCATION = 1;
+const __u32 K_BITMAP_EVENT_TYPE_ACTIVITY_START = 2;
+const __u32 K_BITMAP_EVENT_TYPE_BITMAP_SCALED = 3;
+
+struct BitmapEvent {
   __u32 type;
   __u32 width;
   __u32 height;
+  __u32 scaled_width;
+  __u32 scaled_height;
   __u32 pixel_storage_type;
   __u32 bitmap_size;
   void *native_ptr;
@@ -111,7 +118,18 @@ struct BitmapAllocation {
 };
 
 struct BinderTransaction {
+  char interface_descriptor[MAX_STRING_LENGTH];
+  unsigned long code;
   int calling_uid;
+  unsigned long timestamp_ns;
+};
+
+struct BinderInterfaceBpfMapKey {
+  char interface_descriptor[MAX_STRING_LENGTH];
+};
+
+struct BinderCodesBpfMapValue {
+  unsigned long codes[10];
 };
 
 __END_DECLS

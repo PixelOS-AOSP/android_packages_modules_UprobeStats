@@ -1,0 +1,19 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+  probe_configs {
+    bpf_name: "prog_Binder_uprobe_exec_transact_internal"
+    fully_qualified_class_name: "android.os.Binder"
+    method_name: "execTransactInternal"
+    fully_qualified_parameters: ["int", "android.os.Parcel", "android.os.Parcel", "int", "int"]
+    binder_transaction_filters {
+      interface_name: "com.android.internal.app.IBatteryStats"
+      method_ids: [1]  # noteStartSensor
+    }
+
+  }
+  bpf_maps: "map_Binder_output_buf"
+  target_process_name: "system_server"
+  duration_seconds: 5
+}

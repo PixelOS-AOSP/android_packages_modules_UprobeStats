@@ -1,5 +1,6 @@
 //! Safe wrapper around the platform dynamic_instrumentation_manager API
-use anyhow::{ensure, Result};
+use anyhow::Result;
+use binder::{Result as BinderResult, Status};
 use dynamic_instrumentation_manager_bindgen::{
     ADynamicInstrumentationManager_ExecutableMethodFileOffsets,
     ADynamicInstrumentationManager_ExecutableMethodFileOffsets_destroy,
@@ -31,7 +32,7 @@ impl ExecutableMethodFileOffsets {
     pub fn get(
         target_process: &TargetProcess,
         method_descriptor: &MethodDescriptor,
-    ) -> Result<Option<Self>> {
+    ) -> BinderResult<Option<Self>> {
         let mut instance: *const ADynamicInstrumentationManager_ExecutableMethodFileOffsets =
             std::ptr::null_mut();
         // SAFETY:
@@ -46,8 +47,9 @@ impl ExecutableMethodFileOffsets {
             )
         };
 
-        ensure!(status == 0, "Failed to get executable method file offsets: {}", status);
-
+        if status != 0 {
+            return Err(Status::new_service_specific_error(status, None));
+        }
         Ok(NonNull::new(
             instance as *mut ADynamicInstrumentationManager_ExecutableMethodFileOffsets,
         )

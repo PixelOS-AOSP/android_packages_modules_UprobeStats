@@ -4,12 +4,26 @@ pub mod bpf_map;
 pub mod config_resolver;
 pub mod guardrail;
 mod process;
+pub mod task;
+#[cfg(feature = "bridge-service")]
+mod uprobestats_bridge_service;
+#[cfg(feature = "binder-service")]
+pub mod uprobestats_service;
 
+use rustutils::android::system_properties;
 use std::time::{Duration, Instant};
 
 const BPF_DIR: &str = "/sys/fs/bpf/uprobestats/";
 pub(crate) fn prefix_bpf(path: &str) -> String {
     BPF_DIR.to_string() + path
+}
+
+/// Returns true if the build is a user build.
+pub fn is_user_build() -> bool {
+    if let Ok(Some(val)) = system_properties::read("ro.build.type") {
+        return val == "user";
+    }
+    true
 }
 
 /// Basic timer implementation

@@ -1,0 +1,40 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+    probe_configs: {
+        bpf_name: "prog_BitmapAllocation_uprobe_bitmap_creation_for_snapshot"
+        file_paths: "/system/framework/framework.jar"
+        fully_qualified_class_name: "android.graphics.Bitmap"
+        method_name: "<init>"
+        fully_qualified_parameters: ["long", "long", "int", "int", "int",
+            "boolean", "byte[]",
+            "android.graphics.NinePatch$InsetStruct", "boolean"]
+    }
+    probe_configs: {
+        bpf_name: "prog_BitmapAllocation_uprobe_apply_free_function"
+        file_paths: "/system/framework/framework.jar"
+        fully_qualified_class_name: "libcore.util.NativeAllocationRegistry$CleanerThunk",
+        method_name: "run"
+        fully_qualified_parameters: []
+    }
+    probe_configs: {
+        bpf_name: "prog_BitmapAllocation_uprobe_activity_perform_start"
+        file_paths: "/system/framework/framework.jar"
+        fully_qualified_class_name: "android.app.Activity",
+        method_name: "performStart"
+        fully_qualified_parameters: ["java.lang.String"]
+    }
+    probe_configs: {
+        bpf_name: "prog_BitmapAllocation_uprobe_create_scaled_bitmap"
+        file_paths: "/system/framework/framework.jar"
+        fully_qualified_class_name: "android.graphics.Bitmap"
+        method_name: "createScaledBitmap"
+        fully_qualified_parameters: ["android.graphics.Bitmap", "int", "int",
+            "boolean"]
+    }
+    bpf_maps: "map_BitmapAllocation_output"
+    target_process_name: "com.android.uprobestats.bitmap"
+    target_process_selection: SPECIFIC_APP_PROCESS_ON_START,
+    duration_seconds: 30
+}

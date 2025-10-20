@@ -1,18 +1,11 @@
 package: "android.uprobestats.flags"
 container: "system"
 
+# keep-sorted start block=yes newline_separated=yes
 flag {
     name: "enable_uprobestats"
     namespace: "system_performance"
     description: "Whether to enable uprobestats."
-    bug: "296108553"
-    is_fixed_read_only: true
-}
-
-flag {
-    name: "uprobestats_support_update_device_idle_temp_allowlist"
-    namespace: "system_performance"
-    description: "Whether to enable uprobestats support of logging update_device_idle_temp_allowlist."
     bug: "296108553"
     is_fixed_read_only: true
 }
@@ -24,3 +17,12 @@ flag {
     description: "Whether the ART executable method file offsets API is available. Mirrors identical flag in com.android.art."
     is_fixed_read_only: true
 }
+
+flag {
+    name: "uprobestats_support_update_device_idle_temp_allowlist"
+    namespace: "system_performance"
+    description: "Whether to enable uprobestats support of logging update_device_idle_temp_allowlist."
+    bug: "296108553"
+    is_fixed_read_only: true
+}
+# keep-sorted end

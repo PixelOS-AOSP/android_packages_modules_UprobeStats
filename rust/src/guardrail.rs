@@ -2,11 +2,13 @@
 use anyhow::{anyhow, bail, Result};
 use uprobestats_proto::config::{uprobestats_config::task::ProbeConfig, UprobestatsConfig};
 
-const ALLOWED_METHOD_PREFIXES: [&str; 4] = [
+const ALLOWED_METHOD_PREFIXES: [&str; 6] = [
     "com.android.server.am.ActivityManagerService$LocalService.updateDeviceIdleTempAllowlist",
     "com.android.server.am.CachedAppOptimizer",
     "com.android.server.am.OomAdjuster",
     "com.android.server.am.OomAdjusterModernImpl",
+    "com.android.server.pm.PackageManagerService$IPackageManagerImpl.setComponentEnabledSetting",
+    "com.android.server.am.ActiveServices.bindServiceLocked",
 ];
 
 /// Checks if the given config is allowed to be instrumented on user devices.

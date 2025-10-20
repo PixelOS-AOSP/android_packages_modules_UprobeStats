@@ -1,69 +1,60 @@
-rust_library {
-    name: "libuprobestats_rs",
-    crate_name: "uprobestats_rs",
+rust_defaults {
+    name: "uprobestats_rs_defaults",
     defaults: ["uprobestats_rust_defaults"],
-    srcs: ["lib.rs"],
+    prefer_rlib: true,
     rustlibs: [
+        "libactivity_manager_rs",
+        "libbinder_rs",
         "libdynamic_instrumentation_manager",
         "liblog_rust",
         "liblogger",
         "libprotobuf",
+        "libstatslog_uprobestats_rs",
+        "libstatssocket_rs",
         "libuprobestats_bpf",
         "libuprobestats_bpf_bindgen",
+        "libuprobestats_mainline_flags_rust",
         "libuprobestats_proto",
         "librustutils",
         "libserde_json",
-        "libstatslog_uprobestats_rs",
-        "libstatssocket_rs",
-        "libuprobestats_mainline_flags_rust",
         "libzerocopy",
+        "uprobestats-bridge-service-aidl-rust",
+        "uprobestats-service-aidl-rust",
     ],
     shared_libs: ["libuprobestats_bpf_cc"],
+    features: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: ["bridge-service"],
+        default: [],
+    }) + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["binder-service"],
+        default: [],
+    }),
+}
+
+rust_library {
+    name: "libuprobestats_rs",
+    crate_name: "uprobestats_rs",
+    defaults: ["uprobestats_rs_defaults"],
+    srcs: ["lib.rs"],
+}
+
+rust_test {
+    name: "uprobestats_rs_test",
+    defaults: ["uprobestats_rs_defaults"],
+    srcs: ["lib.rs"],
 }
 
 rust_binary {
     name: "uprobestats_rs",
     stem: "uprobestats",
+    defaults: ["uprobestats_rs_defaults"],
+    srcs: ["main.rs"],
+    rustlibs: [
+        "libuprobestats_rs",
+        "libatrace_rust",
+    ],
     enabled: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: true,
         false: false,
     }),
-    srcs: ["main.rs"],
-    defaults: ["uprobestats_rust_defaults"],
-    prefer_rlib: true,
-    rustlibs: [
-        "libuprobestats_rs",
-        "libuprobestats_proto",
-        "libprotobuf",
-        "libbinder_rs",
-        "liblog_rust",
-        "liblogger",
-        "libuprobestats_bpf",
-        "libuprobestats_bpf_bindgen",
-        "librustutils",
-        "libuprobestats_mainline_flags_rust",
-        "libatrace_rust",
-    ],
-}
-
-rust_test {
-    name: "uprobestats_rs_test",
-    srcs: ["lib.rs"],
-    defaults: ["uprobestats_rust_defaults"],
-    rustlibs: [
-        "libuprobestats_rs",
-        "libdynamic_instrumentation_manager",
-        "liblog_rust",
-        "liblogger",
-        "libprotobuf",
-        "libstatslog_uprobestats_rs",
-        "libstatssocket_rs",
-        "libuprobestats_bpf",
-        "libuprobestats_bpf_bindgen",
-        "libuprobestats_mainline_flags_rust",
-        "libuprobestats_proto",
-        "librustutils",
-        "libserde_json",
-        "libzerocopy",
-    ],
 }

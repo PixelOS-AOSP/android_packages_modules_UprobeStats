@@ -41,6 +41,8 @@ message UprobestatsConfig {
       // Fully qualified parameters list of the method being targeted. E.g. ["int", "boolean"]
       // Supersedes `file_paths` and `method_signature`
       repeated string fully_qualified_parameters = 6;
+
+      repeated BinderTransactionFilter binder_transaction_filters = 7;
     }
 
     repeated ProbeConfig probe_configs = 1;
@@ -61,7 +63,7 @@ message UprobestatsConfig {
       // These arguments MUST be primitive types (e.g. bool, int), NOT complex objects
       // (that will be nothing but pointers). The positions should be ordered in the same
       // order as the corresponding fields of the atom to be populated.
-      // 
+      //
       // For example, given the method:
       // `void startThing(int argA, int argB, int argC)`
       // and the atom:
@@ -72,7 +74,7 @@ message UprobestatsConfig {
       // }
       // ```
       // The config value should be [1, 0], meaning the 2nd argument is actually the
-      // first field in the atom, and vice versa. 
+      // first field in the atom, and vice versa.
       repeated int32 primitive_argument_positions = 2;
     }
     optional StatsdLoggingConfig statsd_logging_config = 5;
@@ -85,6 +87,11 @@ message UprobestatsConfig {
     };
 
     optional TargetProcessSelection target_process_selection = 6;
+
+    message BinderTransactionFilter {
+      optional string interface_name = 1;
+      repeated int64 method_ids = 2;
+    }
 
   }
 

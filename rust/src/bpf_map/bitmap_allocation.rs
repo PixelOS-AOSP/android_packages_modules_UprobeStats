@@ -6,23 +6,27 @@ use rand::thread_rng;
 use rand::Rng;
 use statslog_uprobestats::{
     android_graphics_bitmap_allocated, android_graphics_bitmap_allocation_snapshot,
+    android_graphics_bitmap_scaled,
 };
 use std::collections::HashMap;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
-use uprobestats_bpf_bindgen::BitmapAllocation;
+use uprobestats_bpf_bindgen::{
+    BitmapEvent, K_BITMAP_EVENT_TYPE_ACTIVITY_START, K_BITMAP_EVENT_TYPE_ALLOCATION,
+    K_BITMAP_EVENT_TYPE_BITMAP_SCALED, K_BITMAP_EVENT_TYPE_DEALLOCATION,
+};
 
 #[derive(Default)]
 pub struct BitmapAllocationHandlerV0 {}
 
-// SAFETY: `BitmapAllocation` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
+// SAFETY: `BitmapEvent` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
 unsafe impl Handler for BitmapAllocationHandlerV0 {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_BitmapAllocation_output";
-    type T = BitmapAllocation;
-    fn on_item(&mut self, task: &ResolvedTask, data: &BitmapAllocation) -> Result<()> {
-        debug!("BitmapAllocation from v0 handler: {data:?}");
+    type T = BitmapEvent;
+    fn on_item(&mut self, task: &ResolvedTask, data: &BitmapEvent) -> Result<()> {
+        debug!("BitmapEvent from v0 handler: {data:?}");
         android_graphics_bitmap_allocated::stats_write(
             task.uid,
             data.width.try_into()?,
@@ -53,15 +57,15 @@ pub struct BitmapAllocationHandlerV1 {
     activity_name: String,
 }
 
-// SAFETY: `BitmapAllocation` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
+// SAFETY: `BitmapEvent` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
 unsafe impl Handler for BitmapAllocationHandlerV1 {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_BitmapAllocation_output";
-    type T = BitmapAllocation;
-    fn on_item(&mut self, task: &ResolvedTask, data: &BitmapAllocation) -> Result<()> {
-        debug!("BitmapAllocation from v1 handler: {data:?}");
+    type T = BitmapEvent;
+    fn on_item(&mut self, task: &ResolvedTask, data: &BitmapEvent) -> Result<()> {
+        debug!("BitmapEvent from v1 handler: {data:?}");
         match data.type_ {
-            0 => {
+            K_BITMAP_EVENT_TYPE_ALLOCATION => {
                 // Allocation
                 let metadata = BitmapMetadata {
                     uid: task.uid,
@@ -84,16 +88,39 @@ unsafe impl Handler for BitmapAllocationHandlerV1 {
                 }
                 Ok(())
             }
-            1 => {
+            K_BITMAP_EVENT_TYPE_DEALLOCATION => {
                 // Deallocation
                 self.bitmaps.remove(&(data.native_ptr as u64));
                 let bitmap_size: i64 = data.bitmap_size.try_into()?;
                 self.current_total_bitmap_size -= bitmap_size;
                 Ok(())
             }
-            2 => {
+            K_BITMAP_EVENT_TYPE_ACTIVITY_START => {
                 // Activity start
                 self.activity_name = bytes_as_str(&data.activity_name)?.to_string();
+                Ok(())
+            }
+            K_BITMAP_EVENT_TYPE_BITMAP_SCALED => {
+                // Bitmap scaled
+                let metadata = BitmapMetadata {
+                    uid: task.uid,
+                    width: data.width.try_into()?,
+                    height: data.height.try_into()?,
+                    pixel_storage_type: data.pixel_storage_type.try_into()?,
+                    activity_name: self.activity_name.clone(),
+                };
+                debug!("BitmapAllocationHandler.on_item: bitmap scaled {metadata:?}");
+                android_graphics_bitmap_scaled::stats_write(
+                    task.uid,
+                    data.width.try_into()?,
+                    data.height.try_into()?,
+                    data.scaled_width.try_into()?,
+                    data.scaled_height.try_into()?,
+                    convert_to_bitmap_scaled_pixel_storage_type_enum(
+                        data.pixel_storage_type.try_into()?,
+                    ),
+                    &self.activity_name.clone(),
+                )?;
                 Ok(())
             }
             _ => Ok(()),
@@ -152,5 +179,17 @@ fn convert_to_pixel_storage_type_enum(
         2 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeAshmem,
         3 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeHardware,
         _ => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeUnspecified,
+    }
+}
+
+fn convert_to_bitmap_scaled_pixel_storage_type_enum(
+    pixel_storage_type: i32,
+) -> android_graphics_bitmap_scaled::PixelStorageType {
+    match pixel_storage_type {
+        0 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeWrappedPixelRef,
+        1 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeHeap,
+        2 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeAshmem,
+        3 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeHardware,
+        _ => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeUnspecified,
     }
 }

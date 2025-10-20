@@ -120,10 +120,10 @@ DEFINE_BPF_PROG("uprobe/on_process_active", AID_UPROBESTATS, AID_UPROBESTATS,
 
   uint8_t *process_record_ptr = 0;
   bpf_probe_read_user(&process_record_ptr, 4, (void *)(ctx->regs[1] + 0x8));
-  bpf_probe_read_user(&output->pid, 4, (void *)(process_record_ptr + 520));
-  bpf_probe_read_user(&output->uid, 4, (void *)(process_record_ptr + 528));
+  bpf_probe_read_user(&output->pid, 4, (void *)(process_record_ptr + 524));
+  bpf_probe_read_user(&output->uid, 4, (void *)(process_record_ptr + 532));
   uint8_t *process_name = 0;
-  bpf_probe_read_user(&process_name, 4, (void *)(process_record_ptr + 452));
+  bpf_probe_read_user(&process_name, 4, (void *)(process_record_ptr + 52));
   recordString(process_name, 256, output->process_name);
 
   bpf_process_change_output_buf_submit(output);
