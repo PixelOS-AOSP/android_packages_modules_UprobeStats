@@ -16,7 +16,9 @@
 
 package com.android.uprobestats;
 
-import android.annotation.RequiresNoPermission;
+import static android.Manifest.permission.DYNAMIC_INSTRUMENTATION;
+
+import android.annotation.PermissionManuallyEnforced;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -41,8 +43,10 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     }
 
     @Override
-    @RequiresNoPermission
+    @PermissionManuallyEnforced
     public boolean isLauncherActivity(String packageName, String className, boolean matchDisabled) {
+        mContext.enforceCallingPermission(
+                DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
         final Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
         intent.setPackage(packageName);
@@ -50,8 +54,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
         int flags = matchDisabled ? PackageManager.MATCH_DISABLED_COMPONENTS : 0;
 
         PackageManager pm = mContext.getPackageManager();
-        List<ResolveInfo> activities =
-                pm.queryIntentActivities(intent, flags);
+        List<ResolveInfo> activities = pm.queryIntentActivities(intent, flags);
 
         for (ResolveInfo resolveInfo : activities) {
             if (resolveInfo.activityInfo.name.equals(className)) {
@@ -63,8 +66,10 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     }
 
     @Override
-    @RequiresNoPermission
+    @PermissionManuallyEnforced
     public int getUidForPackage(String packageName) {
+        mContext.enforceCallingPermission(
+                DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
         try {
             return mContext.getPackageManager().getPackageUid(packageName, 0);
         } catch (PackageManager.NameNotFoundException e) {
