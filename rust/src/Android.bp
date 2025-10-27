@@ -16,7 +16,6 @@ rust_defaults {
         "libuprobestats_mainline_flags_rust",
         "libuprobestats_proto",
         "librustutils",
-        "libserde_json",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
         "uprobestats-service-aidl-rust",
