@@ -4,28 +4,11 @@ package {
 }
 
 aconfig_declarations {
-    name: "uprobestats_flags",
-    package: "android.uprobestats.flags",
-    container: "system",
-    srcs: ["flag.aconfig"],
-}
-
-aconfig_declarations {
     name: "uprobestats_mainline_flags",
     package: "android.uprobestats.mainline.flags",
     container: "com.android.uprobestats",
     exportable: true,
     srcs: ["mainline-flag.aconfig"],
-}
-
-cc_aconfig_library {
-    name: "uprobestats_flags_c_lib",
-    aconfig_declarations: "uprobestats_flags",
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.uprobestats",
-    ],
-    min_sdk_version: "36",
 }
 
 cc_aconfig_library {
@@ -36,13 +19,6 @@ cc_aconfig_library {
         "com.android.uprobestats",
     ],
     min_sdk_version: "36",
-}
-
-java_aconfig_library {
-    name: "uprobestats_flags_java_lib",
-    aconfig_declarations: "uprobestats_flags",
-    sdk_version: "current",
-    host_supported: true,
 }
 
 java_aconfig_library {
@@ -129,7 +105,6 @@ uprobestats_cc_library {
     ],
     static_libs: [
         "libjsoncpp",
-        "uprobestats_flags_c_lib",
         "uprobestats_mainline_flags_c_lib",
     ],
     proto: {
@@ -157,7 +132,6 @@ cc_binary {
         "libjsoncpp",
         "libprotoutil",
         "libuprobestats",
-        "uprobestats_flags_c_lib",
         "uprobestats_mainline_flags_c_lib",
     ],
     shared_libs: [

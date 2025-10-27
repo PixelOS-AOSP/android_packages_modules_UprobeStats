@@ -16,8 +16,6 @@
 
 package com.android.uprobestats;
 
-import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
-import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 
 import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
@@ -57,11 +55,7 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
             new UprobeStatsTestRule(this::getDevice);
 
     @Test
-    @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
-        FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES,
-    })
+    @RequiresFlagsEnabled(FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES)
     public void disruptiveAppActivity() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
 

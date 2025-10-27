@@ -16,9 +16,6 @@
 
 package com.android.uprobestats;
 
-import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
-import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
-
 import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -68,32 +65,22 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
     @Rule(order = 1)
-    public final UprobeStatsTestRule mUprobeStatsTestRule = new UprobeStatsTestRule(this::getDevice);
+    public final UprobeStatsTestRule mUprobeStatsTestRule =
+            new UprobeStatsTestRule(this::getDevice);
 
     @Test
-    @RequiresFlagsDisabled(FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
-    @RequiresFlagsEnabled(FLAG_ENABLE_UPROBESTATS)
-    public void batteryStats_oatdump() throws Exception {
-        batteryStats(BATTERY_STATS_CONFIG_OATDUMP);
-    }
-
-    @Test
-    @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
-        com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS
-    })
+    @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
     public void batteryStats_artApi() throws Exception {
+        assumeTrue(
+                CpuFeatures.isArm64(
+                        getDevice())); // TODO: b/455573923 - run uprobestats integration tests on
+                                       // x86
         batteryStats(BATTERY_STATS_CONFIG_ART);
     }
 
     @Test
     @Ignore
-    @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
-        com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS
-    })
+    @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
     public void batteryStats_oatdump_fallback() throws Exception {
         batteryStats(BATTERY_STATS_CONFIG_OATDUMP);
     }
@@ -129,7 +116,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    @RequiresFlagsEnabled(FLAG_ENABLE_UPROBESTATS)
     public void updateDeviceIdleTempAllowlist() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
         configureStatsDAndStartUprobeStats(
@@ -166,7 +152,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     @Ignore
-    @RequiresFlagsEnabled(FLAG_ENABLE_UPROBESTATS)
     public void setUidTempAllowlistState() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
         configureStatsDAndStartUprobeStats(

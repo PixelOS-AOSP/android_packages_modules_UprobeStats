@@ -16,7 +16,6 @@
 
 #define LOG_TAG "uprobestats"
 
-#include <android_uprobestats_flags.h>
 #include <android_uprobestats_mainline_flags.h>
 
 #include "FlagSelector.h"
@@ -29,7 +28,7 @@ bool enable_uprobestats() {
 #ifdef UPROBESTATS_IN_MAINLINE
   return android::uprobestats::mainline::flags::enable_uprobestats();
 #else
-  return android::uprobestats::flags::enable_uprobestats();
+  return true;
 #endif
 }
 
@@ -38,8 +37,7 @@ bool uprobestats_support_update_device_idle_temp_allowlist() {
   return android::uprobestats::mainline::flags::
       uprobestats_support_update_device_idle_temp_allowlist();
 #else
-  return android::uprobestats::flags::
-      uprobestats_support_update_device_idle_temp_allowlist();
+  return true;
 #endif
 }
 
@@ -48,7 +46,7 @@ bool executable_method_file_offsets() {
   return android::uprobestats::mainline::flags::
       executable_method_file_offsets();
 #else
-  return android::uprobestats::flags::executable_method_file_offsets();
+  return true;
 #endif
 }
 
