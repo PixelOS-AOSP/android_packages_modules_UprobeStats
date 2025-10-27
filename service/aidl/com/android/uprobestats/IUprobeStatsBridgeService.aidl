@@ -30,7 +30,7 @@ interface IUprobeStatsBridgeService {
    * @param matchDisabled Whether to match disabled components.
    * @return True if the given package name and class name represent a launcher activity.
    */
-  @RequiresNoPermission
+  @PermissionManuallyEnforced
   boolean isLauncherActivity(in String packageName, in String className, boolean matchDisabled);
   /**
    * Returns the uid for the given package name. If the package name is not found
@@ -39,6 +39,6 @@ interface IUprobeStatsBridgeService {
    * @param packageName The package name of the package.
    * @return The uid for the given package name.
    */
-  @RequiresNoPermission
+  @PermissionManuallyEnforced
   int getUidForPackage(in String packageName);
 }
