@@ -32,7 +32,6 @@
 #include "ConfigResolver.h"
 #include "DebugLog.h"
 #include "DynamicInstrumentationManager.h"
-#include "FlagSelector.h"
 #include "Process.h"
 
 namespace android {
@@ -120,8 +119,7 @@ resolveProbes(::uprobestats::protos::UprobestatsConfig::Task &taskConfig) {
   }
   std::vector<ResolvedProbe> result;
   for (auto &probeConfig : taskConfig.probe_configs()) {
-    if (android::uprobestats::flag_selector::executable_method_file_offsets() &&
-        probeConfig.has_fully_qualified_class_name()) {
+    if (probeConfig.has_fully_qualified_class_name()) {
       LOG_IF_DEBUG("using getExecutableMethodFileOffsets to retrieve offsets");
       std::vector<std::string> fqParameters(
           probeConfig.fully_qualified_parameters().begin(),

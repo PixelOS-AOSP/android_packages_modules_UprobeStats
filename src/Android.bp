@@ -89,7 +89,6 @@ uprobestats_cc_library {
         "Bpf.cpp",
         "ConfigResolver.cpp",
         "DynamicInstrumentationManager.cpp",
-        "FlagSelector.cpp",
         "Process.cpp",
         "Guardrail.cpp",
         "config.proto",
