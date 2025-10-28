@@ -31,13 +31,13 @@ java_aconfig_library {
 java_aconfig_library {
     name: "uprobestats_mainline_flags_java_lib",
     aconfig_declarations: "uprobestats_mainline_flags",
-    sdk_version: "current",
     visibility: [
         "//cts/hostsidetests/statsdatom:__subpackages__",
         "//packages/modules/UprobeStats:__subpackages__",
     ],
     min_sdk_version: "36",
     apex_available: ["com.android.uprobestats"],
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
 }
 
 java_aconfig_library {

@@ -1,0 +1,80 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package {
+    default_visibility: [":__pkg__"],
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+filegroup {
+    name: "framework-uprobestats-sources",
+    defaults: ["framework-sources-module-defaults"],
+    srcs: [
+        "java/**/*.java",
+        ":uprobestats-bridge-service-aidl-sources",
+    ],
+    visibility: ["//packages/modules/Uprobestats/framework:__subpackages__"],
+}
+
+java_sdk_library {
+    name: "framework-uprobestats",
+    defaults: ["framework-module-defaults"],
+    installable: true,
+
+    jarjar_rules: "jarjar-rules.txt",
+
+    srcs: [
+        ":framework-uprobestats-sources",
+    ],
+
+    libs: [
+        "androidx.annotation_annotation",
+    ],
+
+    aconfig_declarations: [
+        "uprobestats_mainline_flags",
+    ],
+
+    static_libs: [
+        "uprobestats_mainline_flags_java_lib",
+    ],
+
+    permitted_packages: [
+        "android.uprobestats.mainline.flags",
+        "com.android.uprobestats",
+        "android.service.uprobestats",
+        "android.annotation",
+        "com.android.internal.annotations",
+        "android.ravenwood.annotation",
+    ],
+
+    api_packages: [
+        "android.service.uprobestats",
+    ],
+
+    hostdex: true, // for hiddenapi check
+
+    impl_library_visibility: [
+        "//packages/modules/Uprobestats/service:__subpackages__",
+        "//packages/modules/Uprobestats/tests:__subpackages__",
+        "//packages/modules/UprobeStats/tests/e2e:__subpackages__",
+    ],
+
+    apex_available: [
+        "com.android.uprobestats",
+    ],
+    min_sdk_version: "36",
+}

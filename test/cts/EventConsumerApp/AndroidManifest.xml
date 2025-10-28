@@ -22,6 +22,7 @@
         android:allowCrossUidActivitySwitchFromBelow="false">
         <uses-library android:name="androidx.window.extensions" android:required="false" />
         <service android:name="com.android.uprobestats.consumer.TestService" android:exported="true"/>
-        <activity android:name="com.android.uprobestats.consumer.MainActivity" android:exported="true"/>
+        <activity android:name=".MainActivity" android:exported="true"/>
+        <service android:name=".DynamicInstrumentationEventServiceImpl" android:exported="true"/>
     </application>
 </manifest>

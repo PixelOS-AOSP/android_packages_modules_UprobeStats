@@ -84,6 +84,41 @@ apex {
         true: ["com.android.uprobestats-systemserverclasspath-fragment"],
         false: [],
     }),
+    bootclasspath_fragments: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: ["com.android.uprobestats-bootclasspath-fragment"],
+        false: [],
+    }),
+}
+
+bootclasspath_fragment {
+    enabled: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: true,
+        false: false,
+    }),
+    name: "com.android.uprobestats-bootclasspath-fragment",
+    contents: [
+        "framework-uprobestats",
+    ],
+    apex_available: ["com.android.uprobestats"],
+
+    // The bootclasspath_fragments that provide APIs on which this depends.
+    fragments: [
+        // Needed to access core java APIs.
+        {
+            apex: "com.android.art",
+            module: "art-bootclasspath-fragment",
+        },
+    ],
+
+    // Additional stubs libraries that this fragment's contents use which are
+    // not provided by another bootclasspath_fragment.
+    additional_stubs: [
+        // Needed to access platform APIs.
+        "android-non-updatable",
+    ],
+    hidden_api: {
+        split_packages: ["*"],
+    },
 }
 
 systemserverclasspath_fragment {

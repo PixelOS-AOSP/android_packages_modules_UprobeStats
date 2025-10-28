@@ -25,6 +25,7 @@ android_test {
     libs: [
         "android.test.runner.stubs.test",
         "android.test.base.stubs.test",
+        "framework-uprobestats.stubs.module_lib",
     ],
     static_libs: [
         "androidx.test.core",

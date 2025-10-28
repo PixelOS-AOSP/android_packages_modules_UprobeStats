@@ -44,6 +44,7 @@ java_library {
         "cts_window_jetpack_utils",
     ],
     libs: [
+        "framework-uprobestats.stubs.module_lib",
     ],
     sdk_version: "test_current",
     platform_apis: true,
