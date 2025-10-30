@@ -75,21 +75,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                 CpuFeatures.isArm64(
                         getDevice())); // TODO: b/455573923 - run uprobestats integration tests on
                                        // x86
-        batteryStats(BATTERY_STATS_CONFIG_ART);
-    }
-
-    @Test
-    @Ignore
-    @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
-    public void batteryStats_oatdump_fallback() throws Exception {
-        batteryStats(BATTERY_STATS_CONFIG_OATDUMP);
-    }
-
-    private void batteryStats(String config) throws Exception {
         configureStatsDAndStartUprobeStats(
                 getClass(),
                 getDevice(),
-                config,
+                BATTERY_STATS_CONFIG_ART,
                 UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
 
         // Set charging state, which should invoke BatteryStatsService#setBatteryState.
@@ -147,43 +136,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                                                 FrameworkExtensionAtoms
                                                         .deviceIdleTempAllowlistUpdated))
                         .anyMatch(reported -> reported.getReason().equals("shell"));
-        assertThat(anyMatch).isTrue();
-    }
-
-    @Test
-    @Ignore
-    public void setUidTempAllowlistState() throws Exception {
-        assumeTrue(CpuFeatures.isArm64(getDevice()));
-        configureStatsDAndStartUprobeStats(
-                getClass(),
-                getDevice(),
-                SET_TEMP_ALLOWLIST_STATE_CONFIG,
-                FrameworkExtensionAtoms.POWER_SAVE_TEMP_ALLOWLIST_CHANGED_FIELD_NUMBER);
-
-        // Set tempallowlist
-        getDevice().executeShellCommand("cmd deviceidle tempwhitelist com.google.android.tts");
-        // Allow UprobeStats/StatsD time to collect metric
-        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-
-        // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isGreaterThan(0);
-        boolean anyMatch =
-                data.stream()
-                        .map(StatsLog.EventMetricData::getAtom)
-                        .filter(
-                                atom ->
-                                        atom.hasExtension(
-                                                FrameworkExtensionAtoms
-                                                        .powerSaveTempAllowlistChanged))
-                        .map(
-                                atom ->
-                                        atom.getExtension(
-                                                FrameworkExtensionAtoms
-                                                        .powerSaveTempAllowlistChanged))
-                        .anyMatch(
-                                reported -> reported.getUid() > 0 && reported.getAddToAllowlist());
         assertThat(anyMatch).isTrue();
     }
 }
