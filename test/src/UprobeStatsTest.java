@@ -69,7 +69,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             new UprobeStatsTestRule(this::getDevice);
 
     @Test
-    @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
     public void batteryStats_artApi() throws Exception {
         assumeTrue(
                 CpuFeatures.isArm64(
