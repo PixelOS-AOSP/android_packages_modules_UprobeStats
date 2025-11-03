@@ -1,5 +1,5 @@
 //! UProbestats executable.
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::ProcessState;
 use log::{debug, error, trace, LevelFilter};
@@ -45,16 +45,6 @@ fn main() {
 
 fn main_impl() -> Result<()> {
     debug!("started");
-
-    ensure!(uprobestats_mainline_flags_rust::enable_uprobestats(), "enable_uprobestats disabled");
-    ensure!(
-        uprobestats_mainline_flags_rust::uprobestats_support_update_device_idle_temp_allowlist(),
-        "uprobestats_support_update_device_idle_temp_allowlist disabled",
-    );
-    ensure!(
-        uprobestats_mainline_flags_rust::executable_method_file_offsets(),
-        "executable_method_file_offsets disabled",
-    );
 
     ProcessState::start_thread_pool();
     trace!("initial flag check done and tread pool started");

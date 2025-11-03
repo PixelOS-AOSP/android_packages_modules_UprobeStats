@@ -16,8 +16,6 @@
 
 package com.android.uprobestats;
 
-import static android.uprobestats.flags.Flags.FLAG_ENABLE_UPROBESTATS;
-import static android.uprobestats.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSACTION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
@@ -70,8 +68,6 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
 
     @Test
     @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
         com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS_V2,
         FLAG_ENABLE_BITMAP_INSTRUMENTATION,
     })
@@ -146,8 +142,6 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
 
     @Test
     @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
         com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS_V2,
         FLAG_ENABLE_BITMAP_INSTRUMENTATION,
         FLAG_ENABLE_BITMAP_SNAPSHOT,
@@ -245,8 +239,6 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
 
     @Test
     @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
         com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS_V2,
         FLAG_ENABLE_BITMAP_INSTRUMENTATION,
         FLAG_ENABLE_BITMAP_SNAPSHOT,
@@ -308,11 +300,7 @@ public class UprobeStatsTestRust extends BaseHostJUnit4Test {
     }
 
     @Test
-    @RequiresFlagsEnabled({
-        FLAG_ENABLE_UPROBESTATS,
-        FLAG_EXECUTABLE_METHOD_FILE_OFFSETS,
-        FLAG_ENABLE_BINDER_TRANSACTION
-    })
+    @RequiresFlagsEnabled(FLAG_ENABLE_BINDER_TRANSACTION)
     public void binderTransaction() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
 

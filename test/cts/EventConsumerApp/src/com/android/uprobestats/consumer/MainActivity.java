@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.android.uprobestats.consumer;
 
-#pragma once
+import android.app.Activity;
+import android.os.Bundle;
 
-namespace android {
-namespace uprobestats {
-namespace flag_selector {
+import androidx.annotation.Nullable;
 
-bool enable_uprobestats();
-bool uprobestats_support_update_device_idle_temp_allowlist();
-bool executable_method_file_offsets();
+/** Main activity. */
+public class MainActivity extends Activity {
+    private static final String TAG = MainActivity.class.getName();
 
-} // namespace flag_selector
-} // namespace uprobestats
-} // namespace android
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
+}

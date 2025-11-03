@@ -26,8 +26,10 @@
 #include <android/trace.h>
 #include <android_uprobestats_mainline_flags.h>
 #include <config.pb.h>
-#include <iostream>
+#include <stats_event.h>
 #include <stdio.h>
+
+#include <iostream>
 #include <string>
 #include <thread>
 
@@ -36,7 +38,6 @@
 #include "DebugLog.h"
 #include "FlagSelector.h"
 #include "Guardrail.h"
-#include <stats_event.h>
 
 using namespace android::uprobestats;
 
@@ -51,10 +52,6 @@ const std::string kProcessManagementMap =
 const std::string kMalwareSignalMap = std::string("MalwareSignal_output_buf");
 const int kJavaArgumentRegisterOffset = 2;
 
-bool isUprobestatsEnabled() {
-  return android::uprobestats::flag_selector::enable_uprobestats();
-}
-
 const std::string kBpfPath = std::string("/sys/fs/bpf/uprobestats/");
 std::string prefixBpf(std::string value) { return kBpfPath + value.c_str(); }
 
@@ -63,7 +60,7 @@ struct PollArgs {
   ::uprobestats::protos::UprobestatsConfig::Task taskConfig;
 };
 
-bool startsWith(const std::string &str, const std::string &prefix) {
+bool startsWith(const std::string& str, const std::string& prefix) {
   return str.length() >= prefix.length() &&
          std::equal(prefix.begin(), prefix.end(), str.begin());
 }
@@ -98,7 +95,7 @@ void doPoll(PollArgs args) {
         auto statsd_logging_config = args.taskConfig.statsd_logging_config();
         int atom_id = statsd_logging_config.atom_id();
         LOG_IF_DEBUG("attempting to write atom id: " << atom_id);
-        AStatsEvent *event = AStatsEvent_obtain();
+        AStatsEvent* event = AStatsEvent_obtain();
         AStatsEvent_setAtomId(event, atom_id);
         for (int primitiveArgumentPosition :
              statsd_logging_config.primitive_argument_positions()) {
@@ -131,7 +128,7 @@ void doPoll(PollArgs args) {
         auto statsd_logging_config = args.taskConfig.statsd_logging_config();
         int atom_id = statsd_logging_config.atom_id();
         LOG_IF_DEBUG("attempting to write atom id: " << atom_id);
-        AStatsEvent *event = AStatsEvent_obtain();
+        AStatsEvent* event = AStatsEvent_obtain();
         AStatsEvent_setAtomId(event, atom_id);
         AStatsEvent_writeInt32(event, value.event);
         AStatsEvent_writeInt64(event, value.timestampNs);
@@ -156,7 +153,7 @@ void doPoll(PollArgs args) {
         }
         auto statsd_logging_config = args.taskConfig.statsd_logging_config();
         int atom_id = statsd_logging_config.atom_id();
-        AStatsEvent *event = AStatsEvent_obtain();
+        AStatsEvent* event = AStatsEvent_obtain();
         AStatsEvent_setAtomId(event, atom_id);
         AStatsEvent_writeInt32(event, value.changing_uid);
         AStatsEvent_writeBool(event, value.adding);
@@ -182,7 +179,7 @@ void doPoll(PollArgs args) {
         }
         auto statsd_logging_config = args.taskConfig.statsd_logging_config();
         int atom_id = statsd_logging_config.atom_id();
-        AStatsEvent *event = AStatsEvent_obtain();
+        AStatsEvent* event = AStatsEvent_obtain();
         AStatsEvent_setAtomId(event, atom_id);
         AStatsEvent_writeInt32(event, value.uid);
         AStatsEvent_writeBool(event, value.onAllowlist);
@@ -200,13 +197,7 @@ void doPoll(PollArgs args) {
 
 int main() {
   ATrace_beginSection("uprobestats_cpp::main");
-  if (android::uprobestats::flag_selector::executable_method_file_offsets()) {
-    ABinderProcess_startThreadPool();
-  }
-  if (!isUprobestatsEnabled()) {
-    LOG(ERROR) << "uprobestats disabled by flag. Exiting.";
-    return 1;
-  }
+  ABinderProcess_startThreadPool();
   auto config =
       config_resolver::readConfig("/data/misc/uprobestats-configs/config");
   if (!config.has_value()) {
@@ -215,9 +206,7 @@ int main() {
   }
   if (!guardrail::isAllowed(
           config.value(),
-          android::base::GetProperty("ro.build.type", "unknown"),
-          android::uprobestats::flag_selector::
-              executable_method_file_offsets())) {
+          android::base::GetProperty("ro.build.type", "unknown"), true)) {
     LOG(ERROR) << "uprobestats probing config disallowed on this device.";
     return 1;
   }
@@ -234,14 +223,8 @@ int main() {
     LOG(ERROR) << "Failed to resolve a probe config from task";
     return 1;
   }
-  for (auto &resolvedProbe : resolvedProbeConfigs.value()) {
+  for (auto& resolvedProbe : resolvedProbeConfigs.value()) {
     LOG_IF_DEBUG("Opening bpf perf event from probe: " << resolvedProbe);
-    if (resolvedProbe.filename ==
-            "prog_ProcessManagement_uprobe_update_device_idle_temp_allowlist" &&
-        !android::uprobestats::flag_selector::
-            uprobestats_support_update_device_idle_temp_allowlist()) {
-      LOG(ERROR) << "update_device_idle_temp_allowlist disabled by flag";
-    }
     if (resolvedProbe.filename ==
             "prog_MalwareSignal_uprobe_add_bound_client_uid" &&
         !android::uprobestats::mainline::flags::
@@ -271,12 +254,6 @@ int main() {
 
   std::vector<std::thread> threads;
   for (auto mapPath : resolvedTask.value().taskConfig.bpf_maps()) {
-    if (mapPath ==
-            "map_ProcessManagement_update_device_idle_temp_allowlist_record" &&
-        !android::uprobestats::flag_selector::
-            uprobestats_support_update_device_idle_temp_allowlist()) {
-      LOG(ERROR) << "update_device_idle_temp_allowlist disabled by flag";
-    }
     if (mapPath == "map_MalwareSignal_output_buf" &&
         !android::uprobestats::mainline::flags::
             uprobestats_monitor_disruptive_app_activities()) {
@@ -290,7 +267,7 @@ int main() {
         "Starting thread to collect results from mapPath: " << mapPath);
     threads.emplace_back(doPoll, pollArgs);
   }
-  for (auto &thread : threads) {
+  for (auto& thread : threads) {
     thread.join();
   }
 

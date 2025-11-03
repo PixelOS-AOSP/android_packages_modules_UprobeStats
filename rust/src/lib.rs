@@ -1,5 +1,4 @@
 //! UprobeStats library
-mod art;
 pub mod bpf_map;
 pub mod config_resolver;
 pub mod guardrail;
