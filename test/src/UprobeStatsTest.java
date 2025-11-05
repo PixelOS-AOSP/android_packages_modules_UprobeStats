@@ -71,10 +71,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     @Test
     @RequiresFlagsEnabled(com.android.art.flags.Flags.FLAG_EXECUTABLE_METHOD_FILE_OFFSETS)
     public void batteryStats_artApi() throws Exception {
-        assumeTrue(
-                CpuFeatures.isArm64(
-                        getDevice())); // TODO: b/455573923 - run uprobestats integration tests on
-                                       // x86
         configureStatsDAndStartUprobeStats(
                 getClass(),
                 getDevice(),
