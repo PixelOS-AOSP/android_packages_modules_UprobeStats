@@ -63,6 +63,13 @@ void recordStringArgFromSp(struct pt_regs *ctx, unsigned int max_length,
   recordString(jstring, max_length, dest);
 }
 
+uint8_t* getJitMethodStackFrame(struct pt_regs *ctx) {
+  // The first argument of a JIT compiled method is the size of the "stub"
+  // method in the stack frame. The next frame is the actual method under
+  // instrumentation.
+  return (uint8_t*) ctx->sp + ctx->regs[0];
+}
+
 /**
  * Loads the content of <length> bytes from the user space address
  * <user_space_address> to <dest> at offset <offset>.

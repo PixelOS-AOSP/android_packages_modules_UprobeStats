@@ -41,3 +41,10 @@ bpf {
     include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
+
+bpf {
+    name: "ArtTest.o",
+    srcs: ["ArtTest.c"],
+    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    sub_dir: "uprobestats",
+}

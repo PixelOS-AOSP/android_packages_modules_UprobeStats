@@ -16,7 +16,7 @@ use zerocopy::transmute_ref;
 #[derive(Default)]
 pub(crate) struct BinderTransactionHandler {}
 
-// SAFETY: `BpfDebug` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
+// SAFETY: `BinderTransaction` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
 unsafe impl Handler for BinderTransactionHandler {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Binder_output_buf";

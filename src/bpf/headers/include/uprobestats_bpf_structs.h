@@ -69,6 +69,7 @@ struct SetUidTempAllowlistStateRecord {
 };
 
 struct UpdateDeviceIdleTempAllowlistRecord {
+  unsigned long method_identifier;
   int changing_uid;
   bool adding;
   long duration_ms;
@@ -130,6 +131,16 @@ struct BinderInterfaceBpfMapKey {
 
 struct BinderCodesBpfMapValue {
   unsigned long codes[10];
+};
+
+struct StartActivityAsUser {
+  unsigned long method_identifier;
+  char calling_package[MAX_STRING_LENGTH];
+  int request_code;
+  int start_flags;
+  int user_id;
+  int validate_incoming_user;
+  unsigned long x0;
 };
 
 __END_DECLS

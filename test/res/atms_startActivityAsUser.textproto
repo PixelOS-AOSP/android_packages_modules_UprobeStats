@@ -1,0 +1,31 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+  probe_configs {
+    bpf_name: "prog_ArtTest_uprobe_start_activity_as_user"
+    fully_qualified_class_name: "com.android.server.wm.ActivityTaskManagerService"
+    method_name: "startActivityAsUser"
+    fully_qualified_parameters: [
+      "android.app.IApplicationThread",
+      "java.lang.String",
+      "java.lang.String",
+      "android.content.Intent",
+      "java.lang.String",
+      "android.os.IBinder",
+      "java.lang.String",
+      "int",
+      "int",
+      "android.app.ProfilerInfo",
+      "android.os.Bundle",
+      "int",
+      "boolean"
+    ]
+  }
+  bpf_maps: "map_ArtTest_output_buf_jit"
+  target_process_name: "system_server"
+  duration_seconds: 5
+  statsd_logging_config {
+    atom_id: 915
+  }
+}

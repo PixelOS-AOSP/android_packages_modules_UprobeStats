@@ -1,7 +1,6 @@
 rust_defaults {
-    name: "uprobestats_rs_defaults",
-    defaults: ["uprobestats_rust_defaults"],
-    prefer_rlib: true,
+    name: "libuprobestats_rs_defaults",
+    srcs: ["lib.rs"],
     rustlibs: [
         "libactivity_manager_rs",
         "libbinder_rs",
@@ -9,13 +8,13 @@ rust_defaults {
         "liblog_rust",
         "liblogger",
         "libprotobuf",
-        "libstatslog_uprobestats_rs",
-        "libstatssocket_rs",
         "libuprobestats_bpf",
         "libuprobestats_bpf_bindgen",
-        "libuprobestats_mainline_flags_rust",
         "libuprobestats_proto",
         "librustutils",
+        "libstatslog_uprobestats_rs",
+        "libstatssocket_rs",
+        "libuprobestats_mainline_flags_rust",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
         "uprobestats-service-aidl-rust",
@@ -27,33 +26,55 @@ rust_defaults {
     }) + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
         true: ["binder-service"],
         default: [],
+    }) + select(product_variable("debuggable"), {
+        true: ["art-test"],
+        false: [],
     }),
 }
 
 rust_library {
     name: "libuprobestats_rs",
     crate_name: "uprobestats_rs",
-    defaults: ["uprobestats_rs_defaults"],
-    srcs: ["lib.rs"],
+    defaults: [
+        "uprobestats_rust_defaults",
+        "libuprobestats_rs_defaults",
+    ],
 }
 
 rust_test {
     name: "uprobestats_rs_test",
-    defaults: ["uprobestats_rs_defaults"],
-    srcs: ["lib.rs"],
+    defaults: [
+        "uprobestats_rust_defaults",
+        "libuprobestats_rs_defaults",
+    ],
 }
 
 rust_binary {
     name: "uprobestats_rs",
     stem: "uprobestats",
-    defaults: ["uprobestats_rs_defaults"],
-    srcs: ["main.rs"],
-    rustlibs: [
-        "libuprobestats_rs",
-        "libatrace_rust",
-    ],
     enabled: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: true,
         false: false,
+    }),
+    srcs: ["main.rs"],
+    defaults: ["uprobestats_rust_defaults"],
+    prefer_rlib: true,
+    rustlibs: [
+        "libuprobestats_rs",
+        "libuprobestats_proto",
+        "libprotobuf",
+        "libbinder_rs",
+        "liblog_rust",
+        "liblogger",
+        "libuprobestats_bpf",
+        "libuprobestats_bpf_bindgen",
+        "librustutils",
+        "libuprobestats_mainline_flags_rust",
+        "libatrace_rust",
+        "uprobestats-service-aidl-rust",
+    ],
+    features: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["binder-service"],
+        default: [],
     }),
 }

@@ -9,7 +9,7 @@ filegroup {
         true: ["src/binder_service/*.java"],
         default: ["src/legacy/*.java"],
     }),
-    exclude_srcs: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
+    exclude_srcs: ["src/ArtTest.java"] + select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: [],
         false: [
             "src/UprobeStatsTestRust.java",
@@ -55,6 +55,45 @@ java_test_host {
         ":DisruptiveTestApp",
         ":BitmapTestApp",
     ],
+}
+
+java_test_host {
+    name: "uprobestats-art-test",
+    srcs: [
+        "src/ArtTest.java",
+        "src/AbstractUprobeStatsTestRule.java",
+    ] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["src/binder_service/*.java"],
+        default: ["src/legacy/*.java"],
+    }),
+    java_resource_dirs: ["res"],
+    libs: [
+        "compatibility-host-util",
+        "core_cts_test_resources",
+        "cts-tradefed",
+        "host-libprotobuf-java-full",
+        "tradefed",
+        "truth",
+    ],
+    static_libs: [
+        "android.hardware.usb.flags-aconfig-java-host",
+        "android.os.flags-aconfig-java-host",
+        "cts-statsd-atom-host-test-utils",
+        "flag-junit-host",
+        "perfetto_config-full",
+        "art_flags_uprobestats_java_lib",
+        "art-aconfig-rw-flags-java-lib-test",
+        "uprobestats_mainline_flags_java_lib_test_host",
+        "uprobestats-protos",
+    ],
+    proto: {
+        type: "full",
+    },
+    test_suites: ["general-tests"],
+    device_common_data: [
+        ":DisruptiveTestApp",
+    ],
+    test_config: "AndroidTestArt.xml",
 }
 
 python_binary_host {

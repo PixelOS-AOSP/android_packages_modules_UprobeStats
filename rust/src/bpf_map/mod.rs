@@ -22,6 +22,9 @@ use uprobestats_bpf::{
 use uprobestats_bpf_bindgen::BpfMapHandle;
 use zerocopy::{Immutable, IntoBytes};
 
+/// A module only for testing JIT integration.
+#[cfg(feature = "art-test")]
+pub mod art_test;
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
@@ -203,6 +206,11 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
             register_handler::<BindServiceLockedHandler>(&mut map);
             register_handler::<ComponentEnabledSettingHandler>(&mut map);
         }
+    }
+    #[cfg(feature = "art-test")]
+    {
+        register_handler::<art_test::JitHandler>(&mut map);
+        register_handler::<art_test::AotHandler>(&mut map);
     }
     map
 });

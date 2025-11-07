@@ -1,0 +1,17 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+  probe_configs: {
+    bpf_name: "prog_ArtTest_uprobe_update_device_idle_temp_allowlist"
+    fully_qualified_class_name: "com.android.server.am.ActivityManagerService$LocalService"
+    method_name: "updateDeviceIdleTempAllowlist"
+    fully_qualified_parameters: ["int[]", "int", "boolean", "long", "int", "int", "java.lang.String", "int"]
+  }
+  bpf_maps: "map_ArtTest_output_buf_aot"
+  target_process_name: "system_server"
+  duration_seconds: 5
+  statsd_logging_config {
+    atom_id: 915
+  }
+}
