@@ -38,12 +38,6 @@ prebuilt_etc {
 }
 
 apex {
-    // This apex will be enabled using release_uprobestats_module flag
-    enabled: select(release_flag("RELEASE_UPROBESTATS_MODULE"), {
-        true: true,
-        false: false,
-    }),
-
     name: "com.android.uprobestats",
     binaries: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
         true: [
