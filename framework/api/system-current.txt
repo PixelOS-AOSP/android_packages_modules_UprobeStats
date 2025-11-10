@@ -1,0 +1,26 @@
+// Signature format: 2.0
+package android.service.uprobestats {
+
+  @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public final class DynamicInstrumentationEvent {
+    ctor @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public DynamicInstrumentationEvent(int, @NonNull java.time.Instant, int, @NonNull android.os.Bundle);
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") @NonNull public android.os.Bundle getPayload();
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public int getPayloadId();
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") @Nullable public java.time.Instant getTimestamp();
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public int getUid();
+  }
+
+  @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public class DynamicInstrumentationEventSender {
+    method public boolean disableTestMode();
+    method public boolean enableTestMode(@NonNull android.content.ComponentName);
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public void sendEvent(@NonNull android.service.uprobestats.DynamicInstrumentationEvent, boolean);
+    method public boolean waitQueueFlushed();
+  }
+
+  @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public abstract class DynamicInstrumentationEventService extends android.app.Service {
+    ctor public DynamicInstrumentationEventService();
+    method @NonNull public final android.os.IBinder onBind(@Nullable android.content.Intent);
+    method @FlaggedApi("android.uprobestats.mainline.flags.dynamic_instrumentation_event_service") public abstract void onEvent(@NonNull java.util.List<android.service.uprobestats.DynamicInstrumentationEvent>);
+  }
+
+}
+

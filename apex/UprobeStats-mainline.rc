@@ -3,4 +3,4 @@ service uprobestats /apex/com.android.uprobestats/bin/uprobestats
     user uprobestats
     group uprobestats readproc
     oneshot
-    capabilities PERFMON
+    capabilities SYS_ADMIN

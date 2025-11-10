@@ -1,4 +1,6 @@
 //! Resolves UprobestatsConfig protos into a list of concrete probes to be attached.
+#[cfg(feature = "art-test")]
+use crate::bpf_map::art_test::{AOT_METHOD_IDENTIFIER, JIT_METHOD_IDENTIFIER};
 use crate::{prefix_bpf, process::resolve_process};
 use anyhow::{anyhow, bail, ensure, Result};
 use binder::ExceptionCode;
@@ -172,6 +174,19 @@ pub fn resolve_probes(resolved_task: &ResolvedTask) -> Result<Vec<ResolvedProbe>
                 .get_method_offset()
                 .try_into()
                 .map_err(|e| anyhow!("Failed to convert method offset to i32: {e}"))?;
+            #[cfg(feature = "art-test")]
+            {
+                if bpf_program_path.contains("ArtTest") {
+                    if offsets.get_container_path().ends_with("so") {
+                        let mut api_method_identifier = JIT_METHOD_IDENTIFIER.lock().unwrap();
+                        *api_method_identifier = offsets.get_container_offset();
+                    } else {
+                        let mut api_method_identifier = AOT_METHOD_IDENTIFIER.lock().unwrap();
+                        *api_method_identifier =
+                            offsets.get_container_offset() + offsets.get_method_offset();
+                    }
+                }
+            }
             Ok(ResolvedProbe {
                 probe,
                 bpf_program_path,

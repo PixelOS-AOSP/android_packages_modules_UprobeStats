@@ -31,13 +31,13 @@ java_aconfig_library {
 java_aconfig_library {
     name: "uprobestats_mainline_flags_java_lib",
     aconfig_declarations: "uprobestats_mainline_flags",
-    sdk_version: "current",
     visibility: [
         "//cts/hostsidetests/statsdatom:__subpackages__",
         "//packages/modules/UprobeStats:__subpackages__",
     ],
     min_sdk_version: "36",
     apex_available: ["com.android.uprobestats"],
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
 }
 
 java_aconfig_library {
@@ -59,31 +59,8 @@ rust_aconfig_library {
     aconfig_declarations: "uprobestats_mainline_flags",
 }
 
-soong_config_module_type {
-    name: "uprobestats_cc_library",
-    module_type: "cc_library",
-    config_namespace: "ANDROID",
-    bool_variables: [
-        "release_uprobestats_module",
-    ],
-    properties: [
-        "cflags",
-    ],
-}
-
-soong_config_bool_variable {
-    name: "release_uprobestats_module",
-}
-
-uprobestats_cc_library {
+cc_library {
     name: "libuprobestats",
-    soong_config_variables: {
-        release_uprobestats_module: {
-            cflags: [
-                "-DUPROBESTATS_IN_MAINLINE=1",
-            ],
-        },
-    },
     srcs: [
         "Art.cpp",
         "Bpf.cpp",
@@ -143,14 +120,6 @@ cc_binary {
     init_rc: [
         "UprobeStats-platform.rc",
     ],
-    required: select(release_flag("RELEASE_UPROBESTATS_MODULE"), {
-        true: [],
-        false: [
-            "BitmapAllocation.o",
-            "GenericInstrumentation.o",
-            "ProcessManagement.o",
-        ],
-    }),
 
     proto: {
         type: "lite",

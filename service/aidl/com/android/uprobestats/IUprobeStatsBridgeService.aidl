@@ -16,6 +16,8 @@
 
  package com.android.uprobestats;
 
+import com.android.uprobestats.Event;
+
 /**
  * Binder interface to communicate with the UprobeStatsBridgeService.
  *
@@ -41,4 +43,16 @@ interface IUprobeStatsBridgeService {
    */
   @PermissionManuallyEnforced
   int getUidForPackage(in String packageName);
+  /** Share a protection log event */
+  @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+  void enqueueEvent(in Event data, in boolean flush);
+  /** Enable test mode - only used for testing */
+  @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+  boolean enableTestMode(in String packageName, in String className);
+  /** Disable test mode - only used for testing */
+  @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+  boolean disableTestMode();
+  /** Wait until queue is flushed - only used for testing */
+  @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+  boolean waitQueueFlushed();
 }

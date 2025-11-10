@@ -16,9 +16,6 @@ soong_config_module_type {
     name: "libuprobestats_client_cc_library_shared",
     module_type: "cc_library_shared",
     config_namespace: "ANDROID",
-    bool_variables: [
-        "release_uprobestats_module",
-    ],
     properties: [
         "stubs",
         "min_sdk_version",
@@ -26,29 +23,15 @@ soong_config_module_type {
     ],
 }
 
-soong_config_bool_variable {
-    name: "release_uprobestats_module",
-}
-
 libuprobestats_client_cc_library_shared {
     name: "libuprobestats_client",
-    soong_config_variables: {
-        release_uprobestats_module: {
-            stubs: {
-                symbol_file: "libcom.android.uprobestats.client.map.txt",
-            },
-            min_sdk_version: "35",
-            apex_available: [
-                "com.android.uprobestats",
-            ],
-            conditions_default: {
-                stubs: {
-                    symbol_file: "libuprobestats_client.map.txt",
-                    versions: ["35"],
-                },
-            },
-        },
+    stubs: {
+        symbol_file: "libcom.android.uprobestats.client.map.txt",
     },
+    min_sdk_version: "35",
+    apex_available: [
+        "com.android.uprobestats",
+    ],
     cflags: [
         "-Wall",
         "-Werror",

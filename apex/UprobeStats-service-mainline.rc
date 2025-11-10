@@ -2,7 +2,7 @@ service uprobestats /apex/com.android.uprobestats/bin/uprobestats
     class main
     user uprobestats
     group uprobestats readproc
-    capabilities PERFMON
+    capabilities SYS_ADMIN
     interface aidl uprobestats_service
     disabled
     oneshot
