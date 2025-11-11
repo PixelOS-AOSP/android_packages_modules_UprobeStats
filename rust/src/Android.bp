@@ -41,12 +41,14 @@ rust_library {
     ],
 }
 
-rust_test {
-    name: "uprobestats_rs_test",
+rust_test_host {
+    name: "uprobestats-guardrail-test",
     defaults: [
         "uprobestats_rust_defaults",
-        "libuprobestats_rs_defaults",
     ],
+    srcs: ["guardrail.rs"],
+    rustlibs: ["libuprobestats_proto"],
+    test_suites: ["general-tests"],
 }
 
 rust_binary {
@@ -61,16 +63,11 @@ rust_binary {
     prefer_rlib: true,
     rustlibs: [
         "libuprobestats_rs",
-        "libuprobestats_proto",
-        "libprotobuf",
+        "libatrace_rust",
         "libbinder_rs",
         "liblog_rust",
         "liblogger",
-        "libuprobestats_bpf",
-        "libuprobestats_bpf_bindgen",
         "librustutils",
-        "libuprobestats_mainline_flags_rust",
-        "libatrace_rust",
         "uprobestats-service-aidl-rust",
     ],
     features: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
