@@ -1,7 +1,7 @@
 use super::{bytes_as_str, Handler};
 use crate::config_resolver::ResolvedTask;
 use anyhow::Result;
-use log::debug;
+use log::trace;
 use rand::thread_rng;
 use rand::Rng;
 use statslog_uprobestats::{
@@ -26,7 +26,7 @@ unsafe impl Handler for BitmapAllocationHandlerV0 {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_BitmapAllocation_output";
     type T = BitmapEvent;
     fn on_item(&mut self, task: &ResolvedTask, data: &BitmapEvent) -> Result<()> {
-        debug!("BitmapEvent from v0 handler: {data:?}");
+        trace!("BitmapEvent from v0 handler: {data:?}");
         android_graphics_bitmap_allocated::stats_write(
             task.uid,
             data.width.try_into()?,
@@ -63,7 +63,7 @@ unsafe impl Handler for BitmapAllocationHandlerV1 {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_BitmapAllocation_output";
     type T = BitmapEvent;
     fn on_item(&mut self, task: &ResolvedTask, data: &BitmapEvent) -> Result<()> {
-        debug!("BitmapEvent from v1 handler: {data:?}");
+        trace!("BitmapEvent from v1 handler: {data:?}");
         match data.type_ {
             K_BITMAP_EVENT_TYPE_ALLOCATION => {
                 // Allocation
@@ -109,7 +109,7 @@ unsafe impl Handler for BitmapAllocationHandlerV1 {
                     pixel_storage_type: data.pixel_storage_type.try_into()?,
                     activity_name: self.activity_name.clone(),
                 };
-                debug!("BitmapAllocationHandler.on_item: bitmap scaled {metadata:?}");
+                trace!("BitmapAllocationHandler.on_item: bitmap scaled {metadata:?}");
                 android_graphics_bitmap_scaled::stats_write(
                     task.uid,
                     data.width.try_into()?,
@@ -128,12 +128,12 @@ unsafe impl Handler for BitmapAllocationHandlerV1 {
     }
 
     fn on_finished(&mut self) -> Result<()> {
-        debug!("BitmapAllocationHandler finished");
+        trace!("BitmapAllocationHandler finished");
         let mut rng = thread_rng();
         {
             let snapshot_id = rng.gen();
             for metadata in &self.bitmap_snapshot_at_max_size {
-                debug!(
+                trace!(
                     "BitmapAllocationHandler.on_finished: bitmap_snapshot_at_max_size {metadata:?}"
                 );
                 android_graphics_bitmap_allocation_snapshot::stats_write(
@@ -152,7 +152,7 @@ unsafe impl Handler for BitmapAllocationHandlerV1 {
         {
             let snapshot_id = rng.gen();
             for metadata in self.bitmaps.values() {
-                debug!("BitmapAllocationHandler.on_finished: random sample {metadata:?}");
+                trace!("BitmapAllocationHandler.on_finished: random sample {metadata:?}");
                 android_graphics_bitmap_allocation_snapshot::stats_write(
                     metadata.uid,
                     metadata.width,

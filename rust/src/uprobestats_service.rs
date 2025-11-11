@@ -3,7 +3,7 @@
 use crate::{task, task::GlobalState};
 use anyhow::Context;
 use binder::{Interface, IntoBinderResult, Status};
-use log::debug;
+use log::trace;
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -32,7 +32,7 @@ impl Interface for UprobeStatsService {}
 
 impl IUprobeStatsService for UprobeStatsService {
     fn startTasks(&self, config: &[u8]) -> Result<(), Status> {
-        debug!("received startTasks call");
+        trace!("received startTasks call");
 
         let (task, probes) = task::resolve_config(config)
             .context("failed to prepare task")

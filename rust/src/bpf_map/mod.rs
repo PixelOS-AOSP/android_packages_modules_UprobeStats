@@ -10,7 +10,7 @@ use crate::bpf_map::process_management::{
 use crate::config_resolver::ResolvedTask;
 use crate::Timer;
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, trace};
 use std::{
     collections::HashMap, ffi::CStr, fmt::Debug, marker::PhantomData, sync::LazyLock,
     time::Duration,
@@ -61,7 +61,7 @@ fn poll_loop_generic<H: Handler + Default>(
         // ring buffer's path.
         let result: Result<Vec<H::T>> = unsafe { poll_ring_buf(map_path, remaining_millis) };
         let result = result?;
-        debug!("Done polling {}, event count: {}", map_path, result.len());
+        trace!("Done polling {}, event count: {}", map_path, result.len());
         for i in &result {
             handler.on_item(task, i)?;
         }

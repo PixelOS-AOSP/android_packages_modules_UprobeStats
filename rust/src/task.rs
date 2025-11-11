@@ -169,7 +169,7 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
             .collect::<Result<Vec<_>, _>>()?;
 
         binder_interface_bpf_map.put(interface_name, &codes, UpdateMapElemFlags::Insert)?;
-        debug!("wrote {interface_name}:{:?} to binder interface bpf map", codes);
+        trace!("wrote {interface_name}:{:?} to binder interface bpf map", codes);
     }
     Ok(())
 }
@@ -210,7 +210,7 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask, probes: &[ResolvedProbe]) ->
         for map_path in &task.bpf_map_paths {
             let task_ref = &task;
             handles.push(s.spawn(move || {
-                debug!("Spawned thread for map_path: {map_path}");
+                trace!("Spawned thread for map_path: {map_path}");
                 poll_registry(map_path, task_ref, duration)
                     .map_err(|e| anyhow!("poll_registry error: {}", e))
             }));

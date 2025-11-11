@@ -1,7 +1,7 @@
 use super::{Handler, JAVA_ARGUMENT_REGISTER_OFFSET};
 use crate::config_resolver::ResolvedTask;
 use anyhow::{anyhow, Result};
-use log::debug;
+use log::{debug, trace};
 use protobuf::MessageField;
 use statssocket::AStatsEvent;
 use uprobestats_bpf_bindgen::{CallResult, CallTimestamp};
@@ -22,12 +22,12 @@ unsafe impl Handler for CallTimestampHandler {
             return Ok(());
         };
 
-        debug!("has logging config");
+        trace!("has logging config");
         let atom_id = statsd_logging_config
             .atom_id
             .ok_or(anyhow!("atom_id required if statsd_logging_config provided"))?;
 
-        debug!("attempting to write atom id: {atom_id}");
+        trace!("attempting to write atom id: {atom_id}");
         let mut event = AStatsEvent::new(atom_id.try_into()?);
         event.write_int32(data.event.try_into()?);
         event.write_int64(data.timestampNs.try_into()?);
@@ -56,12 +56,12 @@ unsafe impl Handler for CallResultHandler {
             return Ok(());
         };
 
-        debug!("has logging config");
+        trace!("has logging config");
         let atom_id = statsd_logging_config
             .atom_id
             .ok_or(anyhow!("atom_id required if statsd_logging_config provided"))?;
 
-        debug!("attempting to write atom id: {atom_id}");
+        trace!("attempting to write atom id: {atom_id}");
         let mut event = AStatsEvent::new(atom_id.try_into()?);
 
         for primitive_argument_position in &statsd_logging_config.primitive_argument_positions {

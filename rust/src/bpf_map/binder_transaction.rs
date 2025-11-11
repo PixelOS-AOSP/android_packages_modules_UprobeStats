@@ -2,7 +2,7 @@
 use super::{bytes_as_str, BpfMap, BpfMapAccessor, Handler};
 use crate::config_resolver::ResolvedTask;
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, trace};
 use statssocket::AStatsEvent;
 use std::{
     ops::Deref,
@@ -58,7 +58,7 @@ impl BinderInterfaceMapAccessor {
             if !deleted {
                 bail!("Failed to delete key {}", key);
             }
-            debug!("deleted {key} from binder interface bpf map");
+            trace!("deleted {key} from binder interface bpf map");
         }
         Ok(())
     }
