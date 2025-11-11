@@ -4,6 +4,14 @@ package {
 }
 
 aconfig_declarations {
+    name: "uprobestats_flags",
+    package: "android.uprobestats.flags",
+    container: "com.android.uprobestats",
+    exportable: true,
+    srcs: ["uprobestats-flags.aconfig"],
+}
+
+aconfig_declarations {
     name: "uprobestats_mainline_flags",
     package: "android.uprobestats.mainline.flags",
     container: "com.android.uprobestats",
@@ -57,4 +65,11 @@ rust_aconfig_library {
     crate_name: "uprobestats_mainline_flags_rust",
     defaults: ["uprobestats_rust_defaults"],
     aconfig_declarations: "uprobestats_mainline_flags",
+}
+
+rust_aconfig_library {
+    name: "libuprobestats_flags_rust",
+    crate_name: "uprobestats_flags_rust",
+    defaults: ["uprobestats_rust_defaults"],
+    aconfig_declarations: "uprobestats_flags",
 }

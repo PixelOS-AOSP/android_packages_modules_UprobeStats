@@ -14,6 +14,7 @@ rust_defaults {
         "librustutils",
         "libstatslog_uprobestats_rs",
         "libstatssocket_rs",
+        "libuprobestats_flags_rust",
         "libuprobestats_mainline_flags_rust",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",

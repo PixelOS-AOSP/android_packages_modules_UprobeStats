@@ -12,7 +12,8 @@ use std::clone::Clone;
 use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
-use uprobestats_mainline_flags_rust as uprobestats_flags;
+use uprobestats_flags_rust as uprobestats_flags;
+use uprobestats_mainline_flags_rust as uprobestats_mainline_flags;
 use uprobestats_proto::config::{
     uprobestats_config::{
         task::{ProbeConfig, TargetProcessSelection},
@@ -25,7 +26,7 @@ pub(crate) fn get_executable_method_file_offsets_with_retry(
     target_process: &TargetProcess,
     method_descriptor: &MethodDescriptor,
 ) -> Result<Option<ExecutableMethodFileOffsets>> {
-    if !uprobestats_flags::use_process_observer_api() {
+    if !uprobestats_mainline_flags::use_process_observer_api() {
         return ExecutableMethodFileOffsets::get(target_process, method_descriptor)
             .map_err(|e| anyhow!("Failed to get executable method file offsets: {}", e));
     }
@@ -218,6 +219,8 @@ fn is_bpf_file_enabled(bpf_prog_or_map_name: &str) -> bool {
         uprobestats_mainline_flags_rust::enable_binder_transaction()
     } else if bpf_prog_or_map_name.contains("prog_BitmapAllocation_uprobe_create_scaled_bitmap") {
         uprobestats_mainline_flags_rust::enable_bitmap_scaled_instrumentation()
+    } else if bpf_prog_or_map_name.contains("Accessibility") {
+        uprobestats_flags::a11y_runtime_permission()
     } else {
         true
     }

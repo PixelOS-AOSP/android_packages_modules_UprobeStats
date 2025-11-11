@@ -1,6 +1,11 @@
 package: "android.uprobestats.mainline.flags"
 container: "com.android.uprobestats"
 
+# DO NOT ADD FLAGS HERE.
+# Flags should be added to uprobestats-flags.aconfig, so that we can eventually
+# drop the "mainline" part of the flag package, which is a relic from when
+# there was both a mainline and non-mainline version of UprobeStats.
+# LINT.IfChange
 # keep-sorted start block=yes newline_separated=yes
 flag {
    name: "dynamic_instrumentation_event_service"
@@ -54,3 +59,4 @@ flag {
     bug: "408255571"
 }
 # keep-sorted end
+# LINT.ThenChange(packages/modules/UprobeStats/flags/uprobestats-flags.aconfig)
