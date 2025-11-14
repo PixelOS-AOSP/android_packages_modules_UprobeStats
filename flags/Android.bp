@@ -65,7 +65,6 @@ rust_aconfig_library {
     crate_name: "uprobestats_mainline_flags_rust",
     defaults: ["uprobestats_rust_defaults"],
     aconfig_declarations: "uprobestats_mainline_flags",
-    host_supported: true,
 }
 
 rust_aconfig_library {
@@ -73,5 +72,4 @@ rust_aconfig_library {
     crate_name: "uprobestats_flags_rust",
     defaults: ["uprobestats_rust_defaults"],
     aconfig_declarations: "uprobestats_flags",
-    host_supported: true,
 }

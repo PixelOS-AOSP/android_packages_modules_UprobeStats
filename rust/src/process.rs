@@ -1,9 +1,5 @@
 //! Utils for dealing with processes
-use crate::{
-    bpf_map::bytes_as_str,
-    config_resolver::{prefix_bpf, ResolvedProcess},
-    Timer,
-};
+use crate::{bpf_map::bytes_as_str, prefix_bpf, Timer};
 use activity_manager::{ProcessObserver, ProcessObserverCallbacks};
 use anyhow::{anyhow, bail, Context, Result};
 use dynamic_instrumentation_manager::{
@@ -17,6 +13,12 @@ use uprobestats_bpf::{bpf_perf_event_open, poll_ring_buf};
 use uprobestats_bpf_bindgen::ProcessChange;
 use uprobestats_mainline_flags_rust as uprobestats_flags;
 use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
+
+pub(crate) struct ResolvedProcess {
+    pub(crate) pid: i32,
+    pub(crate) uid: i32,
+    pub(crate) name: String,
+}
 
 pub(crate) fn resolve_process(
     target_process_name: Option<&str>, // Make process name optional
