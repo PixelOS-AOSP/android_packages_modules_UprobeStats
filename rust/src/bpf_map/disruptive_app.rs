@@ -3,7 +3,7 @@ use crate::config_resolver::ResolvedTask;
 use crate::is_user_build;
 use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, Result};
-use log::debug;
+use log::{debug, trace};
 use statslog_uprobestats::{
     bind_service_locked_with_bal_flags_reported, bind_service_locked_with_bal_flags_uids_reported,
     disabled_launcher_activity_uids_reported, set_component_enabled_setting_reported,
@@ -52,9 +52,9 @@ unsafe impl Handler for ComponentEnabledSettingHandler {
             } else {
                 service.getUidForPackage(calling_package_name)?
             };
-            debug!("uid for package: {calling_package_name} = {calling_uid}");
+            trace!("uid for package: {calling_package_name} = {calling_uid}");
             let disabled_activity_uid = service.getUidForPackage(package_name)?;
-            debug!("uid for package: {package_name} = {disabled_activity_uid}");
+            trace!("uid for package: {package_name} = {disabled_activity_uid}");
             disabled_launcher_activity_uids_reported::stats_write(
                 calling_uid,
                 disabled_activity_uid,

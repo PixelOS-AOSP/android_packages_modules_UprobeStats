@@ -12,11 +12,6 @@ pub mod uprobestats_service;
 use rustutils::android::system_properties;
 use std::time::{Duration, Instant};
 
-const BPF_DIR: &str = "/sys/fs/bpf/uprobestats/";
-pub(crate) fn prefix_bpf(path: &str) -> String {
-    BPF_DIR.to_string() + path
-}
-
 /// Returns true if the build is a user build.
 pub fn is_user_build() -> bool {
     if let Ok(Some(val)) = system_properties::read("ro.build.type") {

@@ -3,62 +3,6 @@ package {
     default_team: "trendy_team_system_performance",
 }
 
-aconfig_declarations {
-    name: "uprobestats_mainline_flags",
-    package: "android.uprobestats.mainline.flags",
-    container: "com.android.uprobestats",
-    exportable: true,
-    srcs: ["mainline-flag.aconfig"],
-}
-
-cc_aconfig_library {
-    name: "uprobestats_mainline_flags_c_lib",
-    aconfig_declarations: "uprobestats_mainline_flags",
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.uprobestats",
-    ],
-    min_sdk_version: "36",
-}
-
-java_aconfig_library {
-    name: "art_flags_uprobestats_java_lib",
-    aconfig_declarations: "art-aconfig-flags",
-    sdk_version: "current",
-    host_supported: true,
-}
-
-java_aconfig_library {
-    name: "uprobestats_mainline_flags_java_lib",
-    aconfig_declarations: "uprobestats_mainline_flags",
-    visibility: [
-        "//cts/hostsidetests/statsdatom:__subpackages__",
-        "//packages/modules/UprobeStats:__subpackages__",
-    ],
-    min_sdk_version: "36",
-    apex_available: ["com.android.uprobestats"],
-    defaults: ["framework-minus-apex-aconfig-java-defaults"],
-}
-
-java_aconfig_library {
-    name: "uprobestats_mainline_flags_java_lib_test_host",
-    aconfig_declarations: "uprobestats_mainline_flags",
-    sdk_version: "current",
-    host_supported: true,
-    mode: "test",
-    visibility: [
-        "//cts/hostsidetests/statsdatom:__subpackages__",
-        "//packages/modules/UprobeStats:__subpackages__",
-    ],
-}
-
-rust_aconfig_library {
-    name: "libuprobestats_mainline_flags_rust",
-    crate_name: "uprobestats_mainline_flags_rust",
-    defaults: ["uprobestats_rust_defaults"],
-    aconfig_declarations: "uprobestats_mainline_flags",
-}
-
 cc_library {
     name: "libuprobestats",
     srcs: [
@@ -181,6 +125,7 @@ rust_protobuf {
     name: "libuprobestats_proto",
     crate_name: "uprobestats_proto",
     defaults: ["uprobestats_rust_defaults"],
+    host_supported: true,
     protos: ["config.proto"],
     source_stem: "libuprobestats_proto",
 }

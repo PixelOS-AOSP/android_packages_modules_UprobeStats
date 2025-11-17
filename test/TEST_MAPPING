@@ -2,6 +2,9 @@
     "presubmit": [
         {
             "name": "uprobestats-test"
+        },
+        {
+            "name": "uprobestats-art-test"
         }
     ],
     "uprobestats-mainline-presubmit": [

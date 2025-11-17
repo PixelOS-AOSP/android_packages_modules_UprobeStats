@@ -27,7 +27,7 @@ unsafe impl Handler for JitHandler {
         let calling_package = bytes_as_str(&item.calling_package)?;
         let api_method_identifier = JIT_METHOD_IDENTIFIER.lock().unwrap();
         let method_identifier = item.method_identifier;
-        trace!(
+        debug!(
             "StartActivityAsUser: method_identifier={}, api_method_identifier={}, calling_package={}, request_code={}, start_flags={}, user_id={}, validate_incoming_user={}, x0={}",
             method_identifier, api_method_identifier, calling_package, item.request_code, item.start_flags,item.user_id, item.validate_incoming_user, item.x0
         );
@@ -74,7 +74,7 @@ unsafe impl Handler for AotHandler {
         let api_method_identifier = AOT_METHOD_IDENTIFIER.lock().unwrap();
         let method_identifier = item.method_identifier;
 
-        trace!("UpdateDeviceIdleTempAllowlistRecord: method_identifier={}, api_method_identifier={}, changing_uid={}, adding={}, duration_ms={}, type={}, reason_code={}, reason={}, calling_uid={}",
+        debug!("UpdateDeviceIdleTempAllowlistRecord: method_identifier={}, api_method_identifier={}, changing_uid={}, adding={}, duration_ms={}, type={}, reason_code={}, reason={}, calling_uid={}",
             method_identifier,
             api_method_identifier,
             item.changing_uid,

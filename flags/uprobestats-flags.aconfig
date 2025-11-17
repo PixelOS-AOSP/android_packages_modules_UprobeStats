@@ -1,0 +1,11 @@
+package: "android.uprobestats.flags"
+container: "com.android.uprobestats"
+
+# keep-sorted start block=yes newline_separated=yes
+flag {
+    name: "a11y_runtime_permission"
+    namespace: "responsible_apis"
+    description: "Whether to enable instrumentation of a11y services self-granting runtime permission"
+    bug: "427180586"
+}
+# keep-sorted end

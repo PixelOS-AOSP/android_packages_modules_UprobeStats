@@ -96,16 +96,38 @@ java_test_host {
     test_config: "AndroidTestArt.xml",
 }
 
-python_binary_host {
-    name: "hello_uprobestats",
-    main: "hello_uprobestats.py",
+java_test_host {
+    name: "uprobestats-manual-test",
     srcs: [
-        "hello_uprobestats.py",
-        ":uprobestats-proto-files",
+        "src/AbstractUprobeStatsTestRule.java",
+        "src/manual/*.java",
+    ] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["src/binder_service/*.java"],
+        default: ["src/legacy/*.java"],
+    }),
+    java_resource_dirs: ["res"],
+    libs: [
+        "compatibility-host-util",
+        "core_cts_test_resources",
+        "cts-tradefed",
+        "host-libprotobuf-java-full",
+        "tradefed",
+        "truth",
     ],
-    data: ["res/*.textproto"],
-    libs: ["libprotobuf-python"],
+    static_libs: [
+        "android.hardware.usb.flags-aconfig-java-host",
+        "android.os.flags-aconfig-java-host",
+        "cts-statsd-atom-host-test-utils",
+        "flag-junit-host",
+        "perfetto_config-full",
+        "art_flags_uprobestats_java_lib",
+        "art-aconfig-rw-flags-java-lib-test",
+        "uprobestats_mainline_flags_java_lib_test_host",
+        "uprobestats-protos",
+    ],
     proto: {
-        canonical_path_from_root: false,
+        type: "full",
     },
+    test_suites: ["general-tests"],
+    test_config: "AndroidTestManual.xml",
 }

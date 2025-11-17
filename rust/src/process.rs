@@ -1,11 +1,15 @@
 //! Utils for dealing with processes
-use crate::{bpf_map::bytes_as_str, prefix_bpf, Timer};
+use crate::{
+    bpf_map::bytes_as_str,
+    config_resolver::{prefix_bpf, ResolvedProcess},
+    Timer,
+};
 use activity_manager::{ProcessObserver, ProcessObserverCallbacks};
 use anyhow::{anyhow, bail, Context, Result};
 use dynamic_instrumentation_manager::{
     ExecutableMethodFileOffsets, MethodDescriptor, TargetProcess,
 };
-use log::debug;
+use log::trace;
 use std::fs::{read, read_dir};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -14,18 +18,12 @@ use uprobestats_bpf_bindgen::ProcessChange;
 use uprobestats_mainline_flags_rust as uprobestats_flags;
 use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
 
-pub(crate) struct ResolvedProcess {
-    pub(crate) pid: i32,
-    pub(crate) uid: i32,
-    pub(crate) name: String,
-}
-
 pub(crate) fn resolve_process(
     target_process_name: Option<&str>, // Make process name optional
     target_process_selection: TargetProcessSelection,
     duration: Duration,
 ) -> Result<ResolvedProcess> {
-    debug!(
+    trace!(
         "resolve_process: process_name: {target_process_name:?} process_selection: {target_process_selection:?}"
     );
     match target_process_selection {
@@ -67,9 +65,11 @@ impl ProcessObserverCallbacks for AppStartObserver {
         _package_name: &str,
         process_name: &str,
     ) {
-        debug!(
+        trace!(
             "Process started via observer: pid={}, uid={}, name={}",
-            pid, process_uid, process_name
+            pid,
+            process_uid,
+            process_name
         );
         if let Some(target_name) = &self.target_process_name {
             if target_name != process_name {
@@ -81,7 +81,7 @@ impl ProcessObserverCallbacks for AppStartObserver {
             ResolvedProcess { pid, uid: process_uid as i32, name: process_name.to_string() };
 
         if self.sender.send(resolved).is_err() {
-            debug!("Receiver dropped, could not send process start event.");
+            trace!("Receiver dropped, could not send process start event.");
         }
     }
 }
@@ -97,7 +97,7 @@ fn wait_for_app_start_observer(
 
     // The observer is automatically unregistered when `_observer` is dropped.
     let _observer = ProcessObserver::register(Box::new(observer_callbacks))?;
-    debug!("Registered process observer. Waiting for app start...");
+    trace!("Registered process observer. Waiting for app start...");
 
     receiver.recv_timeout(duration).map_err(|e| anyhow!("Timeout waiting for process start: {}", e))
 }
@@ -111,14 +111,14 @@ fn wait_for_app_start_uprobe(
     let (offsets, bpf_prog_name) = match get_ProcessRecord_makeActive_offsets() {
         Ok(offsets) => (offsets, BPF_PROG_PROCESS_MANAGEMENT_MAKE_ACTIVE),
         Err(e) => {
-            debug!(
+            trace!(
                 "Could not find offsets for ProcessRecord#makeActive, trying onProcessActive: {e}"
             );
             (get_onProcessActive_offsets()?, BPF_PROG_PROCESS_MANAGEMENT_ON_PROCESS_ACTIVE)
         }
     };
 
-    debug!("attaching process management bpf for app start");
+    trace!("attaching process management bpf for app start");
     bpf_perf_event_open(
         offsets.get_container_path(),
         offsets.get_method_offset().try_into()?,
@@ -128,7 +128,7 @@ fn wait_for_app_start_uprobe(
 
     let timer = Timer::new(duration);
     while let Some(remaining_millis) = timer.remaining_millis() {
-        debug!("polling {} for {} seconds", BPF_MAP_PROCESS_MANAGEMENT, remaining_millis / 1000);
+        trace!("polling {} for {} seconds", BPF_MAP_PROCESS_MANAGEMENT, remaining_millis / 1000);
         // SAFETY: hard coded `const BPF_MAP_PROCESS_MANAGEMENT` writes the `ProcessChange` struct.
         let result: Result<Vec<ProcessChange>> = unsafe {
             poll_ring_buf(&prefix_bpf(BPF_MAP_PROCESS_MANAGEMENT), remaining_millis.try_into()?)
@@ -140,9 +140,10 @@ fn wait_for_app_start_uprobe(
                 if process_change.pid <= 0 {
                     continue;
                 }
-                debug!(
+                trace!(
                     "detected process start: pid: {} uid: {}",
-                    process_change.pid, process_change.uid
+                    process_change.pid,
+                    process_change.uid
                 );
                 return Ok(ResolvedProcess {
                     pid: process_change.pid,

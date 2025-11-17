@@ -2,7 +2,7 @@
 use anyhow::Result;
 use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::ProcessState;
-use log::{debug, error, trace, LevelFilter};
+use log::{error, trace, LevelFilter};
 use rustutils::android::system_properties;
 use std::{
     cmp::{max, min},
@@ -44,20 +44,21 @@ fn main() {
 }
 
 fn main_impl() -> Result<()> {
-    debug!("started");
+    trace!("started");
 
     ProcessState::start_thread_pool();
     trace!("initial flag check done and tread pool started");
 
     handle_tasks()?;
 
-    debug!("done");
+    trace!("done");
 
     Ok(())
 }
 
 #[cfg(not(feature = "binder-service"))]
 fn handle_tasks() -> Result<()> {
+    trace!("handle_tasks: NOT binder-service");
     let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
     let (task, probes) = task::resolve_config(&config_bytes)?;
 
@@ -73,6 +74,7 @@ fn handle_tasks() -> Result<()> {
 
 #[cfg(feature = "binder-service")]
 fn handle_tasks() -> Result<()> {
+    trace!("handle_tasks: binder-service");
     let state = Arc::new(Mutex::new(None));
     let service = BnUprobeStatsService::new_binder(
         UprobeStatsService::new(state.clone()),
@@ -81,7 +83,7 @@ fn handle_tasks() -> Result<()> {
 
     register_lazy_service(UPROBESTATS_SERVICE_NAME, service.as_binder())?;
 
-    debug!("registered service - joining thread pool");
+    trace!("registered service - joining thread pool");
     ProcessState::join_thread_pool();
     trace!("join_thread_pool done");
 
