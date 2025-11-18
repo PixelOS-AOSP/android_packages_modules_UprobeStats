@@ -1,4 +1,4 @@
-package: "android.uprobestats.flags"
+package: "com.android.uprobestats.flags"
 container: "com.android.uprobestats"
 
 # keep-sorted start block=yes newline_separated=yes
