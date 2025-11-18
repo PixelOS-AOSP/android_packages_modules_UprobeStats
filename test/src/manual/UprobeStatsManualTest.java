@@ -1,5 +1,5 @@
-    /*
- * Copyright (C) 2024 The Android Open Source Project
+/*
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,10 +53,34 @@ public class UprobeStatsManualTest extends BaseHostJUnit4Test {
 
     @Test
     public void runConfig() throws Exception {
+        String configName = System.getenv("UPROBESTATS_TEST_CONFIG");
+        if (configName == null) {
+            throw new AssertionError(
+                    "UPROBESTATS_TEST_CONFIG is not set. Should be set to the name of the config"
+                            + " file in the res/ directory, without the .textproto extension.");
+        }
+        int atomId = UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER;
+        boolean expectAtom = false;
+        String atomIdStr = System.getenv("UPROBESTATS_TEST_ATOM_ID");
+        if (atomIdStr != null) {
+            expectAtom = true;
+            atomId = Integer.parseInt(atomIdStr);
+        }
         configureStatsDAndStartUprobeStats(
-                getClass(),
-                getDevice(),
-                System.getenv("UPROBESTATS_TEST_CONFIG") + ".textproto",
-                UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
+                getClass(), getDevice(), configName + ".textproto", atomId);
+
+        if (expectAtom) {
+            String timeout = System.getenv("UPROBESTATS_TEST_TIMEOUT");
+            long timeoutMillis = 30 * 1000;
+            if (timeout != null) {
+                timeoutMillis = Long.parseLong(timeout) * 1000;
+            }
+            RunUtil.getDefault().sleep(timeoutMillis);
+            // See if the atom made it
+            List<StatsLog.EventMetricData> data =
+                    ReportUtils.getEventMetricDataList(
+                            getDevice(), mUprobeStatsTestRule.getRegistry());
+            assertThat(data.size()).isGreaterThan(0);
+        }
     }
 }

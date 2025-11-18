@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -32,6 +33,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.service.uprobestats.DynamicInstrumentationUtil;
 import android.util.Slog;
+import android.view.accessibility.AccessibilityManager;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -143,6 +145,27 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             Slog.e(TAG, "Package not found: " + packageName);
             return -1;
         }
+    }
+
+    @Override
+    @PermissionManuallyEnforced
+    public boolean packageHasEnabledAccessibilityService(String packageName) {
+        mContext.enforceCallingPermission(
+                DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
+        AccessibilityManager am = mContext.getSystemService(AccessibilityManager.class);
+        if (am == null) {
+            Slog.e(TAG, "Failed to get AccessibilityManager.");
+            return false;
+        }
+
+        List<AccessibilityServiceInfo> services = am.getEnabledAccessibilityServiceList(
+                AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
+        for (AccessibilityServiceInfo info : services) {
+            if (info.getResolveInfo().serviceInfo.packageName.equals(packageName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Runnable mFlushRunnable =

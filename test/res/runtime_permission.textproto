@@ -1,0 +1,22 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+  probe_configs {
+    bpf_name: "prog_Accessibility_uprobe_grant_runtime_permission"
+    fully_qualified_class_name: "com.android.server.pm.permission.PermissionManagerService"
+    method_name: "grantRuntimePermission"
+    fully_qualified_parameters: ["java.lang.String", "java.lang.String", "java.lang.String", "int"]
+  }
+  probe_configs {
+    bpf_name: "prog_Accessibility_uprobe_dispatch_gesture"
+    fully_qualified_class_name: "android.os.Binder"
+    method_name: "execTransactInternal"
+    fully_qualified_parameters: ["int", "android.os.Parcel", "android.os.Parcel", "int", "int"]
+  }
+  bpf_maps: [
+    "map_Accessibility_output_buf"
+  ]
+  target_process_name: "system_server"
+  duration_seconds: 15
+}

@@ -24,9 +24,6 @@
 #include <uprobestats_bpf_structs.h>
 
 const int kBinderDescriptorOffset = 8;
-const char kTargetInterfaceDescriptor[MAX_STRING_LENGTH] =
-    "com.android.internal.app.IBatteryStats";
-const int kTargetCode = 1; // noteStartSensor
 
 DEFINE_BPF_MAP_EXT(interfaces, HASH, struct BinderInterfaceBpfMapKey,
                    struct BinderCodesBpfMapValue, 5000, AID_UPROBESTATS,

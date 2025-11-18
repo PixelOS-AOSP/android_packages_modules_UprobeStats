@@ -1,4 +1,6 @@
 //! Deals with fetching data BPF ring buffers ("maps").
+#[cfg(feature = "bridge-service")]
+use crate::bpf_map::accessibility::AccessibilityHandler;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
 #[cfg(feature = "bridge-service")]
@@ -22,6 +24,8 @@ use uprobestats_bpf::{
 use uprobestats_bpf_bindgen::BpfMapHandle;
 use zerocopy::{Immutable, IntoBytes};
 
+#[cfg(feature = "bridge-service")]
+mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;
@@ -202,6 +206,9 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler>(&mut map);
     #[cfg(feature = "bridge-service")]
     {
+        if uprobestats_flags_rust::a11y_runtime_permission() {
+            register_handler::<AccessibilityHandler>(&mut map);
+        }
         if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
             register_handler::<BindServiceLockedHandler>(&mut map);
             register_handler::<ComponentEnabledSettingHandler>(&mut map);

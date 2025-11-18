@@ -43,6 +43,14 @@ interface IUprobeStatsBridgeService {
    */
   @PermissionManuallyEnforced
   int getUidForPackage(in String packageName);
+  /**
+   * Returns true if the given package name has an accessibility service.
+   *
+   * @param packageName The package name of the package.
+   * @return True if the given package name has an accessibility service.
+   */
+  @PermissionManuallyEnforced
+  boolean packageHasEnabledAccessibilityService(in String packageName);
   /** Share a protection log event */
   @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
   void enqueueEvent(in Event data, in boolean flush);

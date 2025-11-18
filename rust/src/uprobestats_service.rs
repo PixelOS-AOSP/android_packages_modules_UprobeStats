@@ -1,9 +1,8 @@
 //! UprobeStatsService is a binder service that receives task configurations from the statsd
 //! process and starts tasks according to the configuration.
 use crate::{task, task::GlobalState};
-use anyhow::Context;
 use binder::{Interface, IntoBinderResult, Status};
-use log::trace;
+use log::{error, trace};
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -35,12 +34,12 @@ impl IUprobeStatsService for UprobeStatsService {
         trace!("received startTasks call");
 
         let (task, probes) = task::resolve_config(config)
-            .context("failed to prepare task")
+            .inspect_err(|e| error!("{e}"))
             .or_service_specific_exception(FAILURE_CONFIG_RESOLUTION)?;
 
         let mut state = self.state.lock().unwrap();
         task::update_polled_bpf_maps(&mut state, &task)
-            .context("conflict found")
+            .inspect_err(|e| error!("{e}"))
             .or_service_specific_exception(FAILURE_CONFLICT)?;
 
         let state = self.state.clone();
