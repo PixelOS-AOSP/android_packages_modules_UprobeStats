@@ -124,7 +124,7 @@ cc_test {
 rust_protobuf {
     name: "libuprobestats_proto",
     crate_name: "uprobestats_proto",
-    defaults: ["uprobestats_rust_defaults"],
+    defaults: ["uprobestats_apex_defaults"],
     host_supported: true,
     protos: ["config.proto"],
     source_stem: "libuprobestats_proto",

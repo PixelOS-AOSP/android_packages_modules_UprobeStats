@@ -4,14 +4,35 @@ package {
 }
 
 rust_defaults {
-    name: "uprobestats_rust_defaults",
-    rustlibs: [
-        "libanyhow",
-        "librand",
-    ],
+    name: "uprobestats_apex_defaults",
     apex_available: [
         "//apex_available:platform",
         "com.android.uprobestats",
     ],
     min_sdk_version: "36",
+}
+
+rust_defaults {
+    name: "uprobestats_core_rustlibs_defaults",
+    rustlibs: [
+        "libanyhow",
+        "liblog_rust",
+        "liblogger",
+    ],
+}
+
+rust_defaults {
+    name: "uprobestats_flags_rustlibs_defaults",
+    rustlibs: [
+        "libuprobestats_flags_rust",
+        "libuprobestats_mainline_flags_rust",
+    ],
+}
+
+rust_defaults {
+    name: "uprobestats_proto_rustlibs_defaults",
+    rustlibs: [
+        "libprotobuf",
+        "libuprobestats_proto",
+    ],
 }

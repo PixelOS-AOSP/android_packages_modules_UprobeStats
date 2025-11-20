@@ -1,26 +1,27 @@
-rust_defaults {
-    name: "libuprobestats_rs_defaults",
+rust_library {
+    name: "libuprobestats_rs",
+    crate_name: "uprobestats_rs",
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+        "uprobestats_flags_rustlibs_defaults",
+        "uprobestats_proto_rustlibs_defaults",
+    ],
     srcs: ["lib.rs"],
     rustlibs: [
         "libactivity_manager_rs",
         "libbinder_rs",
         "libdynamic_instrumentation_manager",
-        "liblog_rust",
-        "liblogger",
-        "libprotobuf",
-        "libuprobestats_bpf",
-        "libuprobestats_bpf_bindgen",
-        "libuprobestats_proto",
+        "librand",
         "librustutils",
         "libstatslog_uprobestats_rs",
         "libstatssocket_rs",
-        "libuprobestats_flags_rust",
-        "libuprobestats_mainline_flags_rust",
+        "libuprobestats_bpf",
+        "libuprobestats_bpf_bindgen",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
         "uprobestats-service-aidl-rust",
     ],
-    shared_libs: ["libuprobestats_bpf_cc"],
     features: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: ["bridge-service"],
         default: [],
@@ -33,39 +34,24 @@ rust_defaults {
     }),
 }
 
-rust_library {
-    name: "libuprobestats_rs",
-    crate_name: "uprobestats_rs",
-    defaults: [
-        "uprobestats_rust_defaults",
-        "libuprobestats_rs_defaults",
-    ],
-}
-
 rust_test_host {
     name: "uprobestats-guardrail-test",
     defaults: [
-        "uprobestats_rust_defaults",
+        "uprobestats_core_rustlibs_defaults",
+        "uprobestats_proto_rustlibs_defaults",
     ],
     srcs: ["guardrail.rs"],
-    rustlibs: ["libuprobestats_proto"],
     test_suites: ["general-tests"],
 }
 
 rust_test_host {
     name: "uprobestats-config-resolver-test",
     defaults: [
-        "uprobestats_rust_defaults",
+        "uprobestats_core_rustlibs_defaults",
+        "uprobestats_flags_rustlibs_defaults",
+        "uprobestats_proto_rustlibs_defaults",
     ],
     srcs: ["config_resolver.rs"],
-    rustlibs: [
-        "libprotobuf",
-        "libuprobestats_flags_rust",
-        "libuprobestats_flags_rust",
-        "libuprobestats_mainline_flags_rust",
-        "libuprobestats_proto",
-        "libzerocopy",
-    ],
     test_suites: ["general-tests"],
 }
 
@@ -77,15 +63,16 @@ rust_binary {
         false: false,
     }),
     srcs: ["main.rs"],
-    defaults: ["uprobestats_rust_defaults"],
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+    ],
     prefer_rlib: true,
     rustlibs: [
-        "libuprobestats_rs",
         "libatrace_rust",
         "libbinder_rs",
-        "liblog_rust",
-        "liblogger",
         "librustutils",
+        "libuprobestats_rs",
         "uprobestats-service-aidl-rust",
     ],
     features: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
