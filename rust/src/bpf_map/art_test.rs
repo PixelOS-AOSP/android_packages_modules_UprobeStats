@@ -4,16 +4,7 @@ use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use protobuf::MessageField;
 use statssocket::AStatsEvent;
-use std::sync::{LazyLock, Mutex};
 use uprobestats_bpf_bindgen::{StartActivityAsUser, UpdateDeviceIdleTempAllowlistRecord};
-
-// Holds a method identfier returned from the ART API when the requested method is JIT compiled,
-// so we can assert it equals the one written from the BPF.
-pub(crate) static JIT_METHOD_IDENTIFIER: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
-
-// Holds a method identfier returned from the ART API when the requested method is AOT compiled,
-// so we can assert it equals the one written from the BPF.
-pub(crate) static AOT_METHOD_IDENTIFIER: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
 
 #[derive(Default)]
 pub(crate) struct JitHandler {}
@@ -25,8 +16,8 @@ unsafe impl Handler for JitHandler {
     type T = StartActivityAsUser;
     fn on_item(&mut self, task: &ResolvedTask, item: &StartActivityAsUser) -> Result<()> {
         let calling_package = bytes_as_str(&item.calling_package)?;
-        let api_method_identifier = JIT_METHOD_IDENTIFIER.lock().unwrap();
         let method_identifier = item.method_identifier;
+        let api_method_identifier = task.resolved_probes[0].method_identifier;
         debug!(
             "StartActivityAsUser: method_identifier={}, api_method_identifier={}, calling_package={}, request_code={}, start_flags={}, user_id={}, validate_incoming_user={}, x0={}",
             method_identifier, api_method_identifier, calling_package, item.request_code, item.start_flags,item.user_id, item.validate_incoming_user, item.x0
@@ -35,9 +26,9 @@ unsafe impl Handler for JitHandler {
         // This BPF is used for a test, but we don't have a way in the java_host_test
         // to assert this. So assert it here.
         // (the only other thing we could do is write true/false to a test statsd atom...meh)
-        #[allow(clippy::unnecessary_cast)] // needed to compile on both 32 and 64 bit targets
+        #[cfg(target_pointer_width = "32")]
         let method_identifier = method_identifier as u64;
-        assert_eq!(*api_method_identifier, method_identifier);
+        assert_eq!(api_method_identifier, method_identifier);
 
         let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
             return Ok(());
@@ -71,9 +62,8 @@ unsafe impl Handler for AotHandler {
         task: &ResolvedTask,
         item: &UpdateDeviceIdleTempAllowlistRecord,
     ) -> Result<()> {
-        let api_method_identifier = AOT_METHOD_IDENTIFIER.lock().unwrap();
         let method_identifier = item.method_identifier;
-
+        let api_method_identifier = task.resolved_probes[0].method_identifier;
         debug!("UpdateDeviceIdleTempAllowlistRecord: method_identifier={}, api_method_identifier={}, changing_uid={}, adding={}, duration_ms={}, type={}, reason_code={}, reason={}, calling_uid={}",
             method_identifier,
             api_method_identifier,
@@ -89,9 +79,9 @@ unsafe impl Handler for AotHandler {
         // This BPF is used for a test, but we don't have a way in the java_host_test
         // to assert this. So assert it here.
         // (the only other thing we could do is write true/false to a test statsd atom...meh)
-        #[allow(clippy::unnecessary_cast)] // needed to compile on both 32 and 64 bit targets
+        #[cfg(target_pointer_width = "32")]
         let method_identifier = method_identifier as u64;
-        assert_eq!(*api_method_identifier, method_identifier);
+        assert_eq!(api_method_identifier, method_identifier);
 
         let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
             return Ok(());

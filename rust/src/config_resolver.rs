@@ -1,6 +1,4 @@
 //! Resolves UprobestatsConfig protos into a list of concrete probes to be attached.
-#[cfg(feature = "art-test")]
-use crate::bpf_map::art_test::{AOT_METHOD_IDENTIFIER, JIT_METHOD_IDENTIFIER};
 use anyhow::{anyhow, ensure, Result};
 use protobuf::Message;
 use std::clone::Clone;
@@ -33,6 +31,9 @@ pub struct ResolvedProbe {
     pub filename: String,
     /// The offset of the probe's method in the code file.
     pub offset: i32,
+    /// The expected method identifier for the probe's method.
+    /// Used to match up BPF results with the correct handler.
+    pub method_identifier: u64,
     /// Absolute path to the bpf program.
     pub bpf_program_path: String,
 }
@@ -52,6 +53,8 @@ pub struct ResolvedTask {
     pub uid: i32,
     /// The set of absolute bpf map paths used by the task.
     pub bpf_map_paths: HashSet<String>,
+    /// The individual probes for the task.
+    pub resolved_probes: Vec<ResolvedProbe>,
 }
 
 trait ProcessResolver {
@@ -66,12 +69,17 @@ trait ProcessResolver {
 /// Validates a single task proto and adds additional info.
 #[cfg(not(test))]
 pub fn resolve_single_task(config: UprobestatsConfig) -> Result<ResolvedTask> {
-    resolve_single_task_impl(config, &resolver_impl::ProcessResolverImpl {})
+    resolve_single_task_impl(
+        config,
+        &resolver_impl::ProcessResolverImpl {},
+        &resolver_impl::OffsetResolverImpl {},
+    )
 }
 
 fn resolve_single_task_impl(
     config: UprobestatsConfig,
-    resolver: &impl ProcessResolver,
+    process_resolver: &impl ProcessResolver,
+    offset_resolver: &impl OffsetResolver,
 ) -> Result<ResolvedTask> {
     let mut tasks = config.tasks.into_iter();
     let task = tasks.next().ok_or_else(|| anyhow!("No tasks found in config"))?;
@@ -98,11 +106,14 @@ fn resolve_single_task_impl(
         .unwrap_or(TargetProcessSelection::UNKNOWN.into())
         .enum_value_or_default();
 
-    let resolved_process = resolver.resolve_process(
+    let resolved_process = process_resolver.resolve_process(
         task.target_process_name.as_deref(), // Pass optional process name
         target_process_selection,
         Duration::from_secs(duration_seconds.try_into()?),
     )?;
+
+    let resolved_probes =
+        resolve_probes(task.probe_configs.clone(), &resolved_process, offset_resolver)?;
 
     Ok(ResolvedTask {
         duration_seconds,
@@ -111,6 +122,7 @@ fn resolve_single_task_impl(
         pid: resolved_process.pid,
         uid: resolved_process.uid,
         bpf_map_paths,
+        resolved_probes,
     })
 }
 
@@ -149,20 +161,12 @@ struct ExecutableMethodFileOffsets {
     method_offset: u64,
 }
 
-/// Validates a single probe proto and adds additional info.
-#[cfg(not(test))]
-pub fn resolve_probes(task: &ResolvedTask) -> Result<Vec<ResolvedProbe>> {
-    resolve_probes_impl(task, &resolver_impl::OffsetResolverImpl {})
-}
-
-fn resolve_probes_impl(
-    resolved_task: &ResolvedTask,
+fn resolve_probes(
+    probe_configs: Vec<ProbeConfig>,
+    resolved_process: &ResolvedProcess,
     resolver: &impl OffsetResolver,
 ) -> Result<Vec<ResolvedProbe>> {
-    resolved_task
-        .task
-        .probe_configs
-        .clone()
+    probe_configs
         .into_iter()
         .map(|probe| {
             let bpf_name =
@@ -180,9 +184,9 @@ fn resolve_probes_impl(
 
             let offsets = resolver.resolve_offsets(
                 &TargetProcess {
-                    uid: resolved_task.uid.try_into()?,
-                    pid: resolved_task.pid,
-                    process_name: resolved_task.process_name.clone(),
+                    uid: resolved_process.uid.try_into()?,
+                    pid: resolved_process.pid,
+                    process_name: resolved_process.name.clone(),
                 },
                 &MethodDescriptor {
                     fully_qualified_class_name: fully_qualified_class_name.clone(),
@@ -197,19 +201,18 @@ fn resolve_probes_impl(
                 .method_offset
                 .try_into()
                 .map_err(|e| anyhow!("Failed to convert method offset to i32: {e}"))?;
-            #[cfg(feature = "art-test")]
-            {
-                if bpf_program_path.contains("ArtTest") {
-                    if offsets.container_path.ends_with("so") {
-                        let mut api_method_identifier = JIT_METHOD_IDENTIFIER.lock().unwrap();
-                        *api_method_identifier = offsets.container_offset;
-                    } else {
-                        let mut api_method_identifier = AOT_METHOD_IDENTIFIER.lock().unwrap();
-                        *api_method_identifier = offsets.container_offset + offsets.method_offset;
-                    }
-                }
-            }
-            Ok(ResolvedProbe { probe, bpf_program_path, offset, filename: offsets.container_path })
+            let method_identifier = if offsets.container_path.ends_with("so") {
+                offsets.container_offset
+            } else {
+                offsets.container_offset + offsets.method_offset
+            };
+            Ok(ResolvedProbe {
+                probe,
+                bpf_program_path,
+                offset,
+                method_identifier,
+                filename: offsets.container_path,
+            })
         })
         .collect::<Result<Vec<_>>>()
 }
@@ -272,6 +275,17 @@ mod tests {
         }
     }
 
+    struct NoneOffsetResolver {}
+    impl OffsetResolver for NoneOffsetResolver {
+        fn resolve_offsets(
+            &self,
+            _target_process: &TargetProcess,
+            _method_descriptor: &MethodDescriptor,
+        ) -> Result<Option<ExecutableMethodFileOffsets>> {
+            Ok(None)
+        }
+    }
+
     #[test]
     fn resolve_single_task_success() {
         let resolver = MockProcessResolver {
@@ -281,7 +295,8 @@ mod tests {
         task.duration_seconds = Some(10);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
 
-        let resolved_task = resolve_single_task_impl(config, &resolver).unwrap();
+        let resolved_task =
+            resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {}).unwrap();
         assert_eq!(resolved_task.pid, 123);
         assert_eq!(resolved_task.uid, 456);
         assert_eq!(resolved_task.process_name, "test_process");
@@ -293,7 +308,7 @@ mod tests {
             result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
         };
         let config = UprobestatsConfig::new(); // No tasks
-        let result = resolve_single_task_impl(config, &resolver);
+        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No tasks found"));
     }
@@ -305,7 +320,7 @@ mod tests {
         };
         let task = Task::new(); // No duration
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver);
+        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Task duration is required"));
     }
@@ -316,7 +331,7 @@ mod tests {
         let mut task = Task::new();
         task.duration_seconds = Some(10);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver);
+        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("process not found"));
     }
@@ -332,7 +347,8 @@ mod tests {
         task2.duration_seconds = Some(20);
         let config = UprobestatsConfig { tasks: vec![task1, task2], ..Default::default() };
 
-        let resolved_task = resolve_single_task_impl(config, &resolver).unwrap();
+        let resolved_task =
+            resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {}).unwrap();
         assert_eq!(resolved_task.duration_seconds, 10); // Check it's the first task
     }
 
@@ -344,7 +360,7 @@ mod tests {
         let mut task = Task::new();
         task.duration_seconds = Some(0);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver);
+        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("must be greater than 0"));
     }
@@ -377,15 +393,8 @@ mod tests {
         probe.bpf_name = Some("test.bpf.o".to_string());
         probe.fully_qualified_class_name = Some("com.example.Test".to_string());
         probe.method_name = Some("testMethod".to_string());
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver {
             result: Ok(Some(ExecutableMethodFileOffsets {
                 container_path: "/path/to/file".to_string(),
@@ -394,7 +403,7 @@ mod tests {
             })),
         };
 
-        let resolved_probes = resolve_probes_impl(&resolved_task, &resolver).unwrap();
+        let resolved_probes = resolve_probes(vec![probe], &resolved_process, &resolver).unwrap();
         assert_eq!(resolved_probes.len(), 1);
         assert_eq!(resolved_probes[0].filename, "/path/to/file");
         assert_eq!(resolved_probes[0].offset, 1234);
@@ -406,18 +415,11 @@ mod tests {
         probe.bpf_name = Some("test.bpf.o".to_string());
         probe.fully_qualified_class_name = Some("com.example.Test".to_string());
         probe.method_name = Some("testMethod".to_string());
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Ok(None) };
 
-        let result = resolve_probes_impl(&resolved_task, &resolver);
+        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Failed to get offsets"));
     }
@@ -425,18 +427,11 @@ mod tests {
     #[test]
     fn resolve_probes_missing_bpf_name() {
         let probe = ProbeConfig::new(); // No bpf_name
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Ok(None) };
 
-        let result = resolve_probes_impl(&resolved_task, &resolver);
+        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("bpf_name is required"));
     }
@@ -447,18 +442,11 @@ mod tests {
         probe.bpf_name = Some("test.bpf.o".to_string());
         probe.fully_qualified_class_name = Some("com.example.Test".to_string());
         // No method name
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Ok(None) };
 
-        let result = resolve_probes_impl(&resolved_task, &resolver);
+        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("method_name is required"));
     }
@@ -473,15 +461,8 @@ mod tests {
         probe2.bpf_name = Some("test2.bpf.o".to_string());
         probe2.fully_qualified_class_name = Some("com.example.Test2".to_string());
         probe2.method_name = Some("testMethod2".to_string());
-        let task = Task { probe_configs: vec![probe1, probe2], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver {
             result: Ok(Some(ExecutableMethodFileOffsets {
                 container_path: "/path/to/file".to_string(),
@@ -490,7 +471,8 @@ mod tests {
             })),
         };
 
-        let resolved_probes = resolve_probes_impl(&resolved_task, &resolver).unwrap();
+        let resolved_probes =
+            resolve_probes(vec![probe1, probe2], &resolved_process, &resolver).unwrap();
         assert_eq!(resolved_probes.len(), 2);
     }
 
@@ -499,18 +481,11 @@ mod tests {
         let mut probe = ProbeConfig::new();
         probe.bpf_name = Some("test.bpf.o".to_string());
         probe.method_name = Some("testMethod".to_string());
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Ok(None) };
 
-        let result = resolve_probes_impl(&resolved_task, &resolver);
+        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("fully_qualified_class_name is required"));
     }
@@ -521,18 +496,11 @@ mod tests {
         probe.bpf_name = Some("test.bpf.o".to_string());
         probe.fully_qualified_class_name = Some("com.example.Test".to_string());
         probe.method_name = Some("testMethod".to_string());
-        let task = Task { probe_configs: vec![probe], ..Default::default() };
-        let resolved_task = ResolvedTask {
-            task,
-            duration_seconds: 10,
-            process_name: "test_process".to_string(),
-            pid: 123,
-            uid: 456,
-            bpf_map_paths: HashSet::new(),
-        };
+        let resolved_process =
+            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Err(anyhow!("resolver error")) };
 
-        let result = resolve_probes_impl(&resolved_task, &resolver);
+        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("resolver error"));
     }
