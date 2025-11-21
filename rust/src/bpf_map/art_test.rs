@@ -1,10 +1,10 @@
 use super::{bytes_as_str, Handler};
-use crate::config_resolver::ResolvedTask;
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use protobuf::MessageField;
 use statssocket::AStatsEvent;
 use uprobestats_bpf_bindgen::{StartActivityAsUser, UpdateDeviceIdleTempAllowlistRecord};
+use uprobestats_core::config_resolver::ResolvedTask;
 
 #[derive(Default)]
 pub(crate) struct JitHandler {}

@@ -2,8 +2,8 @@
 //! Functions should be called in the order documented.
 use crate::{
     bpf_map::{binder_transaction::BinderInterfaceMapAccessor, poll_registry},
-    config_resolver::{read_config_from_bytes, resolve_single_task, ResolvedProbe, ResolvedTask},
-    guardrail, is_user_build,
+    is_user_build,
+    resolver_impl::{OffsetResolverImpl, ProcessResolverImpl},
 };
 use anyhow::{anyhow, bail, ensure, Result};
 #[cfg(feature = "binder-service")]
@@ -18,6 +18,10 @@ use std::{
     time::Duration,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
+use uprobestats_core::{
+    config_resolver::{read_config_from_bytes, resolve_single_task, ResolvedProbe, ResolvedTask},
+    guardrail,
+};
 
 /// The global state for the uprobestats daemon process.
 /// - Some(ActiveState): tracks metadata when there are tasks currently running.
@@ -58,7 +62,7 @@ pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask> {
         "uprobestats probing config disallowed on this device"
     );
 
-    let task = resolve_single_task(config)?;
+    let task = resolve_single_task(config, &ProcessResolverImpl {}, &OffsetResolverImpl {})?;
 
     Ok(task)
 }

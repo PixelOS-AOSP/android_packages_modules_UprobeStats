@@ -12,14 +12,15 @@ use uprobestats_proto::config::{
     UprobestatsConfig,
 };
 
-#[cfg(not(test))]
-mod resolver_impl;
-
+/// Resolved process information.
 #[derive(Clone, Debug)]
-pub(crate) struct ResolvedProcess {
-    pub(crate) pid: i32,
-    pub(crate) uid: i32,
-    pub(crate) name: String,
+pub struct ResolvedProcess {
+    /// PID
+    pub pid: i32,
+    /// UID
+    pub uid: i32,
+    /// Process name
+    pub name: String,
 }
 
 /// Validated probe proto + probe target's code filename and offset.
@@ -57,7 +58,9 @@ pub struct ResolvedTask {
     pub resolved_probes: Vec<ResolvedProbe>,
 }
 
-trait ProcessResolver {
+/// Implementations can get actuall process info off a device based on the supplied information.
+pub trait ProcessResolver {
+    /// Resolves the process metadata to a ResolvedProcess.
     fn resolve_process(
         &self,
         process_name: Option<&str>,
@@ -66,17 +69,9 @@ trait ProcessResolver {
     ) -> Result<ResolvedProcess>;
 }
 
-/// Validates a single task proto and adds additional info.
-#[cfg(not(test))]
-pub fn resolve_single_task(config: UprobestatsConfig) -> Result<ResolvedTask> {
-    resolve_single_task_impl(
-        config,
-        &resolver_impl::ProcessResolverImpl {},
-        &resolver_impl::OffsetResolverImpl {},
-    )
-}
-
-fn resolve_single_task_impl(
+/// Validates a single task proto and enriches it with the information needed to attach
+/// uprobes and consume their results.
+pub fn resolve_single_task(
     config: UprobestatsConfig,
     process_resolver: &impl ProcessResolver,
     offset_resolver: &impl OffsetResolver,
@@ -126,7 +121,10 @@ fn resolve_single_task_impl(
     })
 }
 
-trait OffsetResolver {
+/// Implementations can get the offsets of an executable given the target process and method
+/// descriptor.
+pub trait OffsetResolver {
+    /// Resolves the offsets of an executable method.
     fn resolve_offsets(
         &self,
         target_process: &TargetProcess,
@@ -136,29 +134,29 @@ trait OffsetResolver {
 
 /// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
 /// that crate here.
-#[cfg_attr(test, allow(dead_code))]
-struct TargetProcess {
-    uid: u32,
-    pid: i32,
-    process_name: String,
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct TargetProcess {
+    pub uid: u32,
+    pub pid: i32,
+    pub process_name: String,
 }
 
 /// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
 /// that crate here.
-#[cfg_attr(test, allow(dead_code))]
-struct MethodDescriptor {
-    fully_qualified_class_name: String,
-    method_name: String,
-    fully_qualified_parameters: Vec<String>,
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct MethodDescriptor {
+    pub fully_qualified_class_name: String,
+    pub method_name: String,
+    pub fully_qualified_parameters: Vec<String>,
 }
 
 /// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
 /// that crate here.
-struct ExecutableMethodFileOffsets {
-    container_path: String,
-    #[cfg_attr(not(feature = "art-test"), allow(dead_code))]
-    container_offset: u64,
-    method_offset: u64,
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct ExecutableMethodFileOffsets {
+    pub container_path: String,
+    pub container_offset: u64,
+    pub method_offset: u64,
 }
 
 fn resolve_probes(
@@ -246,7 +244,8 @@ fn is_bpf_file_enabled(bpf_prog_or_map_name: &str) -> bool {
 }
 
 const BPF_DIR: &str = "/sys/fs/bpf/uprobestats/";
-pub(crate) fn prefix_bpf(path: &str) -> String {
+/// Returns the full path to a bpf file in the `uprobestats` directory.
+pub fn prefix_bpf(path: &str) -> String {
     BPF_DIR.to_string() + path
 }
 
@@ -295,8 +294,7 @@ mod tests {
         task.duration_seconds = Some(10);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
 
-        let resolved_task =
-            resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {}).unwrap();
+        let resolved_task = resolve_single_task(config, &resolver, &NoneOffsetResolver {}).unwrap();
         assert_eq!(resolved_task.pid, 123);
         assert_eq!(resolved_task.uid, 456);
         assert_eq!(resolved_task.process_name, "test_process");
@@ -308,7 +306,7 @@ mod tests {
             result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
         };
         let config = UprobestatsConfig::new(); // No tasks
-        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No tasks found"));
     }
@@ -320,7 +318,7 @@ mod tests {
         };
         let task = Task::new(); // No duration
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Task duration is required"));
     }
@@ -331,7 +329,7 @@ mod tests {
         let mut task = Task::new();
         task.duration_seconds = Some(10);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("process not found"));
     }
@@ -347,8 +345,7 @@ mod tests {
         task2.duration_seconds = Some(20);
         let config = UprobestatsConfig { tasks: vec![task1, task2], ..Default::default() };
 
-        let resolved_task =
-            resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {}).unwrap();
+        let resolved_task = resolve_single_task(config, &resolver, &NoneOffsetResolver {}).unwrap();
         assert_eq!(resolved_task.duration_seconds, 10); // Check it's the first task
     }
 
@@ -360,7 +357,7 @@ mod tests {
         let mut task = Task::new();
         task.duration_seconds = Some(0);
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
-        let result = resolve_single_task_impl(config, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("must be greater than 0"));
     }

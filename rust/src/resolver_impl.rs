@@ -1,4 +1,3 @@
-use super::{OffsetResolver, ProcessResolver, ResolvedProcess};
 use crate::process::resolve_process;
 use anyhow::{anyhow, bail, Result};
 use binder::ExceptionCode;
@@ -6,9 +5,13 @@ use dynamic_instrumentation_manager::{
     ExecutableMethodFileOffsets, MethodDescriptor, TargetProcess,
 };
 use std::{thread, time::Duration};
+use uprobestats_core::{
+    config_resolver,
+    config_resolver::{OffsetResolver, ProcessResolver, ResolvedProcess},
+};
 use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
 
-pub(super) struct ProcessResolverImpl {}
+pub(crate) struct ProcessResolverImpl {}
 impl ProcessResolver for ProcessResolverImpl {
     fn resolve_process(
         &self,
@@ -20,49 +23,22 @@ impl ProcessResolver for ProcessResolverImpl {
     }
 }
 
-pub(super) struct OffsetResolverImpl {}
+pub(crate) struct OffsetResolverImpl {}
 impl OffsetResolver for OffsetResolverImpl {
     fn resolve_offsets(
         &self,
-        target_process: &super::TargetProcess,
-        method_descriptor: &super::MethodDescriptor,
-    ) -> Result<Option<super::ExecutableMethodFileOffsets>> {
-        let offsets = get_executable_method_file_offsets_with_retry(
-            &target_process.into(),
-            &method_descriptor.into(),
-        )?;
-        Ok(offsets.map(|offsets| offsets.into()))
+        target_process: &config_resolver::TargetProcess,
+        method_descriptor: &config_resolver::MethodDescriptor,
+    ) -> Result<Option<config_resolver::ExecutableMethodFileOffsets>> {
+        let target_process = to_target_process(target_process)?;
+        let method_descriptor = to_method_descriptor(method_descriptor)?;
+        let offsets =
+            get_executable_method_file_offsets_with_retry(&target_process, &method_descriptor)?;
+        Ok(offsets.as_ref().map(to_config_resolver_offsets))
     }
 }
 
-impl From<&super::MethodDescriptor> for MethodDescriptor {
-    fn from(val: &super::MethodDescriptor) -> Self {
-        MethodDescriptor::new(
-            &val.fully_qualified_class_name,
-            &val.method_name,
-            val.fully_qualified_parameters.clone(),
-        )
-        .unwrap()
-    }
-}
-
-impl From<&super::TargetProcess> for TargetProcess {
-    fn from(val: &super::TargetProcess) -> Self {
-        TargetProcess::new(val.uid, val.pid, &val.process_name).unwrap()
-    }
-}
-
-impl From<ExecutableMethodFileOffsets> for super::ExecutableMethodFileOffsets {
-    fn from(val: ExecutableMethodFileOffsets) -> super::ExecutableMethodFileOffsets {
-        super::ExecutableMethodFileOffsets {
-            container_path: val.get_container_path(),
-            container_offset: val.get_container_offset(),
-            method_offset: val.get_method_offset(),
-        }
-    }
-}
-
-pub(super) fn get_executable_method_file_offsets_with_retry(
+fn get_executable_method_file_offsets_with_retry(
     target_process: &TargetProcess,
     method_descriptor: &MethodDescriptor,
 ) -> Result<Option<ExecutableMethodFileOffsets>> {
@@ -103,5 +79,29 @@ pub(super) fn get_executable_method_file_offsets_with_retry(
                 backoff *= 2;
             }
         }
+    }
+}
+
+fn to_method_descriptor(
+    method_descriptor: &config_resolver::MethodDescriptor,
+) -> Result<MethodDescriptor> {
+    MethodDescriptor::new(
+        &method_descriptor.fully_qualified_class_name,
+        &method_descriptor.method_name,
+        method_descriptor.fully_qualified_parameters.clone(),
+    )
+}
+
+fn to_target_process(target_process: &config_resolver::TargetProcess) -> Result<TargetProcess> {
+    TargetProcess::new(target_process.uid, target_process.pid, &target_process.process_name)
+}
+
+fn to_config_resolver_offsets(
+    offsets: &ExecutableMethodFileOffsets,
+) -> config_resolver::ExecutableMethodFileOffsets {
+    config_resolver::ExecutableMethodFileOffsets {
+        container_path: offsets.get_container_path(),
+        container_offset: offsets.get_container_offset(),
+        method_offset: offsets.get_method_offset(),
     }
 }

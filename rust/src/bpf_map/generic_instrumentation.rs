@@ -1,10 +1,10 @@
 use super::{Handler, JAVA_ARGUMENT_REGISTER_OFFSET};
-use crate::config_resolver::ResolvedTask;
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use protobuf::MessageField;
 use statssocket::AStatsEvent;
 use uprobestats_bpf_bindgen::{CallResult, CallTimestamp};
+use uprobestats_core::config_resolver::ResolvedTask;
 
 #[derive(Default)]
 pub struct CallTimestampHandler {}

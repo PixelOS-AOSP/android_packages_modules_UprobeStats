@@ -9,8 +9,6 @@ use crate::bpf_map::generic_instrumentation::{CallResultHandler, CallTimestampHa
 use crate::bpf_map::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
 };
-use crate::config_resolver::ResolvedTask;
-use crate::Timer;
 use anyhow::{bail, Result};
 use log::{debug, trace};
 use std::{
@@ -22,6 +20,7 @@ use uprobestats_bpf::{
     bpf_map_open_exclusive_rw, bpf_map_update_elem, poll_ring_buf, UpdateMapElemFlags,
 };
 use uprobestats_bpf_bindgen::BpfMapHandle;
+use uprobestats_core::{config_resolver::ResolvedTask, timer::Timer};
 use zerocopy::{Immutable, IntoBytes};
 
 #[cfg(feature = "bridge-service")]

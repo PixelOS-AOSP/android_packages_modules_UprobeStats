@@ -18,6 +18,7 @@ rust_library {
         "libstatssocket_rs",
         "libuprobestats_bpf",
         "libuprobestats_bpf_bindgen",
+        "libuprobestats_core",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
         "uprobestats-service-aidl-rust",
@@ -32,27 +33,6 @@ rust_library {
         true: ["art-test"],
         false: [],
     }),
-}
-
-rust_test_host {
-    name: "uprobestats-guardrail-test",
-    defaults: [
-        "uprobestats_core_rustlibs_defaults",
-        "uprobestats_proto_rustlibs_defaults",
-    ],
-    srcs: ["guardrail.rs"],
-    test_suites: ["general-tests"],
-}
-
-rust_test_host {
-    name: "uprobestats-config-resolver-test",
-    defaults: [
-        "uprobestats_core_rustlibs_defaults",
-        "uprobestats_flags_rustlibs_defaults",
-        "uprobestats_proto_rustlibs_defaults",
-    ],
-    srcs: ["config_resolver.rs"],
-    test_suites: ["general-tests"],
 }
 
 rust_binary {

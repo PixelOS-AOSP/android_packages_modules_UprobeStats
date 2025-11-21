@@ -1,5 +1,4 @@
 use super::{bytes_as_str, Handler};
-use crate::config_resolver::ResolvedTask;
 use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, bail, Result};
 use log::{debug, trace};
@@ -8,6 +7,7 @@ use std::collections::HashMap;
 use std::num::TryFromIntError;
 use std::time::Duration;
 use uprobestats_bpf_bindgen::AccessibilityEvent;
+use uprobestats_core::config_resolver::ResolvedTask;
 
 #[derive(Default)]
 pub struct AccessibilityHandler {
