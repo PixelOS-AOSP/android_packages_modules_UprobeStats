@@ -7,9 +7,7 @@ use statssocket_bindgen::{
     AStatsEvent_writeInt64Array, AStatsEvent_writeString,
 };
 use std::ptr::NonNull;
-
-mod c_string;
-use c_string::c_string;
+use uprobestats_c_string::c_string;
 
 pub use statssocket_bindgen::AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID;
 

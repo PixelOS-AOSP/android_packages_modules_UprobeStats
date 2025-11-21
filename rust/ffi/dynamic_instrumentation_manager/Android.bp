@@ -1,0 +1,23 @@
+rust_library {
+    name: "libdynamic_instrumentation_manager",
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+    ],
+    crate_name: "dynamic_instrumentation_manager",
+    srcs: ["dynamic_instrumentation_manager.rs"],
+    rustlibs: [
+        "libbinder_rs",
+        "libdynamic_instrumentation_manager_bindgen",
+        "libuprobestats_c_string",
+    ],
+}
+
+rust_bindgen {
+    name: "libdynamic_instrumentation_manager_bindgen",
+    crate_name: "dynamic_instrumentation_manager_bindgen",
+    defaults: ["uprobestats_apex_defaults"],
+    wrapper_src: "dynamic_instrumentation_manager_wrapper.h",
+    source_stem: "bindings",
+    shared_libs: ["libandroid"],
+}

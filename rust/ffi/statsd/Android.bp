@@ -1,0 +1,43 @@
+rust_library {
+    name: "libstatssocket_rs",
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+    ],
+    crate_name: "statssocket",
+    srcs: ["statssocket.rs"],
+    rustlibs: [
+        "libstatssocket_bindgen",
+        "libuprobestats_c_string",
+    ],
+}
+
+rust_bindgen {
+    name: "libstatssocket_bindgen",
+    defaults: ["uprobestats_apex_defaults"],
+    wrapper_src: "statssocket_wrapper.h",
+    crate_name: "statssocket_bindgen",
+    source_stem: "bindings",
+    shared_libs: ["libstatssocket"],
+}
+
+rust_library {
+    name: "libstatslog_uprobestats_rs",
+    defaults: ["uprobestats_apex_defaults"],
+    crate_name: "statslog_uprobestats",
+    srcs: [
+        "statslog_wrapper.rs",
+        ":statslog_uprobestats.rs",
+    ],
+    rustlibs: [
+        "libstatslog_rust_header",
+        "libstatspull_bindgen",
+    ],
+}
+
+genrule {
+    name: "statslog_uprobestats.rs",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --module uprobestats --rustHeaderCrate statslog_rust_header --rust $(genDir)/statslog_uprobestats.rs",
+    out: ["statslog_uprobestats.rs"],
+}

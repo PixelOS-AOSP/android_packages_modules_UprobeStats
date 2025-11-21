@@ -18,9 +18,7 @@ use dynamic_instrumentation_manager_bindgen::{
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr::NonNull;
-
-mod c_string;
-use c_string::c_string;
+use uprobestats_c_string::c_string;
 
 /// Describes the code offsets for a given method.
 pub struct ExecutableMethodFileOffsets {

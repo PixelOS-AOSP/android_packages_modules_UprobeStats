@@ -1,0 +1,46 @@
+rust_library {
+    name: "libuprobestats_bpf",
+    crate_name: "uprobestats_bpf",
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+    ],
+    srcs: ["bpf.rs"],
+    rustlibs: [
+        "liblibc",
+        "liblog_rust",
+        "libuprobestats_bpf_bindgen",
+        "libuprobestats_c_string",
+    ],
+}
+
+rust_bindgen {
+    name: "libuprobestats_bpf_bindgen",
+    crate_name: "uprobestats_bpf_bindgen",
+    defaults: ["uprobestats_apex_defaults"],
+    wrapper_src: "bpf_wrapper.h",
+    source_stem: "bindings",
+    shared_libs: ["libuprobestats_bpf_cc"],
+    visibility: ["//packages/modules/UprobeStats:__subpackages__"],
+}
+
+cc_library_shared {
+    name: "libuprobestats_bpf_cc",
+    srcs: ["bpf.cpp"],
+    header_libs: [
+        "uprobestats_bpf_headers",
+    ],
+    export_header_lib_headers: [
+        "uprobestats_bpf_headers",
+    ],
+    shared_libs: [
+        "libandroid",
+        "libbase",
+        "liblog",
+    ],
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.uprobestats",
+    ],
+    min_sdk_version: "36",
+}
