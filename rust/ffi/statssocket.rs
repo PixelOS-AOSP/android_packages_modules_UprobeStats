@@ -1,14 +1,17 @@
 //! Bindings for AStatsEvent NDK API.
 use anyhow::Result;
 use statssocket_bindgen::{
-    AStatsEvent as AStatsEvent_raw, AStatsEvent_obtain, AStatsEvent_release, AStatsEvent_setAtomId,
-    AStatsEvent_write, AStatsEvent_writeBool, AStatsEvent_writeInt32, AStatsEvent_writeInt64,
-    AStatsEvent_writeString,
+    AStatsEvent as AStatsEvent_raw, AStatsEvent_addBoolAnnotation, AStatsEvent_obtain,
+    AStatsEvent_release, AStatsEvent_setAtomId, AStatsEvent_write, AStatsEvent_writeBool,
+    AStatsEvent_writeInt32, AStatsEvent_writeInt32Array, AStatsEvent_writeInt64,
+    AStatsEvent_writeInt64Array, AStatsEvent_writeString,
 };
 use std::ptr::NonNull;
 
 mod c_string;
 use c_string::c_string;
+
+pub use statssocket_bindgen::AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID;
 
 /// Safe wrapper around raw `AStatsEvent`.
 pub struct AStatsEvent {
@@ -53,6 +56,28 @@ impl AStatsEvent {
         // - we've just created a valid &CStr from `value`.
         unsafe { AStatsEvent_writeString(self.as_ptr(), value.as_ptr()) };
         Ok(())
+    }
+
+    /// Writes an `i32` slice to the `AStatsEvent`.
+    pub fn write_int32_slice(&mut self, value: &[i32]) {
+        // SAFETY:
+        // - `&mut self` is an exclusive reference to a non-null `AStatsEvent_raw`.
+        // - `value` is a non-null slice of `i32` values that outlive the function call.
+        unsafe { AStatsEvent_writeInt32Array(self.as_ptr(), value.as_ptr(), value.len()) };
+    }
+
+    /// Writes an `i64` slice to the `AStatsEvent`.
+    pub fn write_int64_slice(&mut self, value: &[i64]) {
+        // SAFETY:
+        // - `&mut self` is an exclusive reference to a non-null `AStatsEvent_raw`.
+        // - `value` is a non-null slice of `i64` values that outlive the function call.
+        unsafe { AStatsEvent_writeInt64Array(self.as_ptr(), value.as_ptr(), value.len()) };
+    }
+
+    /// Adds a boolean annotation to the previous field written.
+    pub fn add_bool_annotation(&mut self, annotation_id: u8, value: bool) {
+        // SAFETY: `&mut self` is an exclusive reference to a non-null `AStatsEvent_raw`.
+        unsafe { AStatsEvent_addBoolAnnotation(self.as_ptr(), annotation_id, value) };
     }
 
     /// Write the event to statsd.

@@ -48,3 +48,10 @@ bpf {
     include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
+
+bpf {
+    name: "Accessibility.o",
+    srcs: ["Accessibility.c"],
+    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    sub_dir: "uprobestats",
+}

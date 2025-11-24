@@ -5,7 +5,7 @@ package {
 
 aconfig_declarations {
     name: "uprobestats_flags",
-    package: "android.uprobestats.flags",
+    package: "com.android.uprobestats.flags",
     container: "com.android.uprobestats",
     exportable: true,
     srcs: ["uprobestats-flags.aconfig"],
