@@ -1,4 +1,3 @@
-use super::{bytes_as_str, Handler};
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use protobuf::MessageField;
@@ -6,7 +5,7 @@ use statssocket::AStatsEvent;
 use uprobestats_bpf_bindgen::{
     SetUidTempAllowlistStateRecord, UpdateDeviceIdleTempAllowlistRecord,
 };
-use uprobestats_core::config_resolver::ResolvedTask;
+use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
 
 #[derive(Default)]
 pub struct SetUidTempAllowlistStateRecordHandler {}

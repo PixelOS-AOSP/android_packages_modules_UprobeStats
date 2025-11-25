@@ -11,17 +11,17 @@ use crate::bpf_map::process_management::{
 };
 use anyhow::{bail, Result};
 use log::{debug, trace};
-use std::{
-    collections::HashMap, ffi::CStr, fmt::Debug, marker::PhantomData, sync::LazyLock,
-    time::Duration,
-};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
     bpf_map_close, bpf_map_delete_elem, bpf_map_get_first_key, bpf_map_lookup_elem,
     bpf_map_open_exclusive_rw, bpf_map_update_elem, poll_ring_buf, UpdateMapElemFlags,
 };
 use uprobestats_bpf_bindgen::BpfMapHandle;
-use uprobestats_core::{config_resolver::ResolvedTask, timer::Timer};
-use zerocopy::{Immutable, IntoBytes};
+use uprobestats_core::{
+    bpf_handler::{Handler, HandlerRegistry},
+    config_resolver::ResolvedTask,
+    timer::Timer,
+};
 
 #[cfg(feature = "bridge-service")]
 mod accessibility;
@@ -71,21 +71,6 @@ fn poll_loop_generic<H: Handler + Default>(
     }
     handler.on_finished()?;
     Ok(())
-}
-
-type HandlerRegistry = HashMap<&'static str, fn(&str, &ResolvedTask, Duration) -> Result<()>>;
-
-/// Interface for reading items out of a BPF ring buffer.
-/// # Safety
-/// There *must* exist a BPF ring buffer at the path represented by `MAP_PATH`
-/// which holds items of type `Handler::T`.
-unsafe trait Handler {
-    const MAP_PATH: &'static str;
-    type T: Debug + Copy;
-    fn on_item(&mut self, task: &ResolvedTask, data: &Self::T) -> Result<()>;
-    fn on_finished(&mut self) -> Result<()> {
-        Ok(())
-    }
 }
 
 /// Defines the static properties of a BPF map.
@@ -220,11 +205,6 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     }
     map
 });
-
-pub(crate) fn bytes_as_str(bytes: &(impl IntoBytes + Immutable)) -> Result<&str> {
-    let string = CStr::from_bytes_until_nul(bytes.as_bytes())?;
-    Ok(string.to_str()?)
-}
 
 #[cfg(test)]
 mod test {

@@ -1,5 +1,4 @@
 //! Utils for dealing with processes
-use crate::bpf_map::bytes_as_str;
 use activity_manager::{ProcessObserver, ProcessObserverCallbacks};
 use anyhow::{anyhow, bail, Context, Result};
 use dynamic_instrumentation_manager::{
@@ -11,6 +10,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use uprobestats_bpf::{bpf_perf_event_open, poll_ring_buf};
 use uprobestats_bpf_bindgen::ProcessChange;
+use uprobestats_core::string::bytes_as_str;
 use uprobestats_core::{
     config_resolver::{prefix_bpf, ResolvedProcess},
     timer::Timer,

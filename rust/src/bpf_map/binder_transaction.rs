@@ -1,5 +1,5 @@
 // use super::test::print_xxd_like;
-use super::{bytes_as_str, BpfMap, BpfMapAccessor, Handler};
+use super::{BpfMap, BpfMapAccessor};
 use anyhow::{bail, Result};
 use log::{debug, trace};
 use statssocket::AStatsEvent;
@@ -10,7 +10,7 @@ use std::{
 use uprobestats_bpf_bindgen::{
     BinderCodesBpfMapValue, BinderInterfaceBpfMapKey, BinderTransaction,
 };
-use uprobestats_core::config_resolver::ResolvedTask;
+use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
 use zerocopy::transmute_ref;
 
 #[derive(Default)]

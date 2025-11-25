@@ -1,4 +1,3 @@
-use super::{bytes_as_str, Handler};
 use anyhow::Result;
 use log::trace;
 use rand::thread_rng;
@@ -15,7 +14,7 @@ use uprobestats_bpf_bindgen::{
     BitmapEvent, K_BITMAP_EVENT_TYPE_ACTIVITY_START, K_BITMAP_EVENT_TYPE_ALLOCATION,
     K_BITMAP_EVENT_TYPE_BITMAP_SCALED, K_BITMAP_EVENT_TYPE_DEALLOCATION,
 };
-use uprobestats_core::config_resolver::ResolvedTask;
+use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
 
 #[derive(Default)]
 pub struct BitmapAllocationHandlerV0 {}
