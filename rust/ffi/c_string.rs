@@ -1,5 +1,4 @@
 //! Utils for working with C strings, returning `anyhow::Result` on failure.
-
 use anyhow::{Context, Result};
 use std::ffi::CString;
 
