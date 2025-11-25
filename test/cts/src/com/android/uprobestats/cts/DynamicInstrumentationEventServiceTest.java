@@ -21,6 +21,7 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.compatibility.common.util.PollingCheck.check;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertNotNull;
@@ -105,7 +106,9 @@ public class DynamicInstrumentationEventServiceTest {
         if (mContext.checkSelfPermission(DYNAMIC_INSTRUMENTATION) == PERMISSION_GRANTED) {
             DynamicInstrumentationEventSender sender =
                     mContext.getSystemService(DynamicInstrumentationEventSender.class);
-            sender.disableTestMode();
+            if (sender != null) {
+                sender.disableTestMode();
+            }
         }
     }
 
