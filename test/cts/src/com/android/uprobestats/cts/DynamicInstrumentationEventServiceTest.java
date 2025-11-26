@@ -32,6 +32,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.service.uprobestats.DynamicInstrumentationEvent;
@@ -113,6 +114,7 @@ public class DynamicInstrumentationEventServiceTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testLaunchConsumer() throws Exception {
         mContext.startActivity(
                 new Intent()
@@ -122,6 +124,7 @@ public class DynamicInstrumentationEventServiceTest {
 
     @Test
     @EnsureHasPermission(DYNAMIC_INSTRUMENTATION)
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testReceiveEventWithFlush() throws Exception {
         DynamicInstrumentationEventSender sender =
                 mContext.getSystemService(DynamicInstrumentationEventSender.class);
@@ -168,6 +171,7 @@ public class DynamicInstrumentationEventServiceTest {
 
     @Test
     @EnsureHasPermission(DYNAMIC_INSTRUMENTATION)
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testReceiveEventWithoutFlush() throws Exception {
         DynamicInstrumentationEventSender sender =
                 mContext.getSystemService(DynamicInstrumentationEventSender.class);
