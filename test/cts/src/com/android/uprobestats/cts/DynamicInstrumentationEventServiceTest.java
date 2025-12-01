@@ -20,6 +20,8 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
+import static com.android.compatibility.common.util.PollingCheck.check;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertNotNull;
@@ -52,6 +54,7 @@ import org.junit.runner.RunWith;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -103,7 +106,9 @@ public class DynamicInstrumentationEventServiceTest {
         if (mContext.checkSelfPermission(DYNAMIC_INSTRUMENTATION) == PERMISSION_GRANTED) {
             DynamicInstrumentationEventSender sender =
                     mContext.getSystemService(DynamicInstrumentationEventSender.class);
-            sender.disableTestMode();
+            if (sender != null) {
+                sender.disableTestMode();
+            }
         }
     }
 
@@ -148,7 +153,14 @@ public class DynamicInstrumentationEventServiceTest {
                         },
                         "bundleCorrespondence");
 
-        List<Bundle> events = testService.getReceivedEvents();
+        final List<Bundle> events = new ArrayList<>();
+        check( // make sure the client has enough time to process the events
+                "Should receive 3 events",
+                500,
+                () -> {
+                    events.addAll(testService.getReceivedEvents());
+                    return events.size() == 3;
+                });
         assertThat(events)
                 .comparingElementsUsing(bundleCorrespondence)
                 .containsExactly(createTestResult(0), createTestResult(1), createTestResult(2));
@@ -187,7 +199,14 @@ public class DynamicInstrumentationEventServiceTest {
                         },
                         "bundleCorrespondence");
 
-        List<Bundle> events = testService.getReceivedEvents();
+        final List<Bundle> events = new ArrayList<>();
+        check( // make sure the client has enough time to process the events
+                "Should receive 3 events",
+                500,
+                () -> {
+                    events.addAll(testService.getReceivedEvents());
+                    return events.size() == 3;
+                });
         assertThat(events)
                 .comparingElementsUsing(bundleCorrespondence)
                 .containsExactly(createTestResult(0), createTestResult(1), createTestResult(2));

@@ -2,10 +2,8 @@
 //! Functions should be called in the order documented.
 use crate::{
     bpf_map::{binder_transaction::BinderInterfaceMapAccessor, poll_registry},
-    config_resolver::{
-        read_config_from_bytes, resolve_probes, resolve_single_task, ResolvedProbe, ResolvedTask,
-    },
-    guardrail, is_user_build,
+    is_user_build,
+    resolver_impl::{OffsetResolverImpl, ProcessResolverImpl},
 };
 use anyhow::{anyhow, bail, ensure, Result};
 #[cfg(feature = "binder-service")]
@@ -20,6 +18,10 @@ use std::{
     time::Duration,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
+use uprobestats_core::{
+    config_resolver::{read_config_from_bytes, resolve_single_task, ResolvedProbe, ResolvedTask},
+    guardrail,
+};
 
 /// The global state for the uprobestats daemon process.
 /// - Some(ActiveState): tracks metadata when there are tasks currently running.
@@ -53,17 +55,16 @@ impl ActiveState {
 /// - resolves the BPF probes to be attached
 ///
 /// Returns the task and the probes that were resolved.
-pub fn resolve_config(config_bytes: &[u8]) -> Result<(ResolvedTask, Vec<ResolvedProbe>)> {
+pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask> {
     let config = read_config_from_bytes(config_bytes)?;
     ensure!(
         guardrail::is_allowed(&config, is_user_build(), true)?,
         "uprobestats probing config disallowed on this device"
     );
 
-    let task = resolve_single_task(config)?;
-    let probes = resolve_probes(&task)?;
+    let task = resolve_single_task(config, &ProcessResolverImpl {}, &OffsetResolverImpl {})?;
 
-    Ok((task, probes))
+    Ok(task)
 }
 
 /// Step 2: checks for conflicts with other tasks, and updates the global state accordingly.
@@ -99,10 +100,10 @@ pub fn update_polled_bpf_maps(
 /// - drains the binder transaction filters map when done.
 ///
 /// This step must not fail, as the following cleanup steps are always required.
-pub fn execute(task: &ResolvedTask, probes: &[ResolvedProbe]) {
-    match setup_binder_transaction_filters(probes) {
+pub fn execute(task: &ResolvedTask) {
+    match setup_binder_transaction_filters(&task.resolved_probes) {
         Ok(map) => {
-            if let Err(e) = attach_probes_and_poll_maps(task, probes) {
+            if let Err(e) = attach_probes_and_poll_maps(task) {
                 error!("task execution failed: {e:?}");
             }
             cleanup_binder_transaction_filters(map);
@@ -177,10 +178,11 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
 /// Step 3b: executes the blocking, long-running part of a task:
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
-fn attach_probes_and_poll_maps(task: &ResolvedTask, probes: &[ResolvedProbe]) -> Result<()> {
+fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
     // keep the fds in scope so they don't get closed immediately. They will be closed when they
     // go out of scope at the end of this function.
-    let _perf_event_fds: Vec<OwnedFd> = probes
+    let _perf_event_fds: Vec<OwnedFd> = task
+        .resolved_probes
         .iter()
         .map(|probe| -> Result<OwnedFd> {
             debug!(

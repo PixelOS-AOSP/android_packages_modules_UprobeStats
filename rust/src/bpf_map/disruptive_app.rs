@@ -1,5 +1,3 @@
-use super::{bytes_as_str, Handler};
-use crate::config_resolver::ResolvedTask;
 use crate::is_user_build;
 use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, Result};
@@ -10,6 +8,7 @@ use statslog_uprobestats::{
 };
 use std::ffi::c_long;
 use uprobestats_bpf_bindgen::{BindServiceLocked, ComponentEnabledSetting};
+use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
 
 const COMPONENT_ENABLED_STATE_DISABLED: i32 = 2; // PackageManager#COMPONENT_ENABLED_STATE_DISABLED (all values greater than or equal to are disabled states)
 

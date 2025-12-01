@@ -63,7 +63,7 @@ java_aconfig_library {
 rust_aconfig_library {
     name: "libuprobestats_mainline_flags_rust",
     crate_name: "uprobestats_mainline_flags_rust",
-    defaults: ["uprobestats_rust_defaults"],
+    defaults: ["uprobestats_apex_defaults"],
     aconfig_declarations: "uprobestats_mainline_flags",
     host_supported: true,
 }
@@ -71,7 +71,7 @@ rust_aconfig_library {
 rust_aconfig_library {
     name: "libuprobestats_flags_rust",
     crate_name: "uprobestats_flags_rust",
-    defaults: ["uprobestats_rust_defaults"],
+    defaults: ["uprobestats_apex_defaults"],
     aconfig_declarations: "uprobestats_flags",
     host_supported: true,
 }

@@ -1,0 +1,39 @@
+rust_library {
+    name: "libactivity_manager_rs",
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_core_rustlibs_defaults",
+    ],
+    crate_name: "activity_manager",
+    srcs: ["activity_manager.rs"],
+    rustlibs: ["libactivity_manager_bindgen"],
+}
+
+cc_library_shared {
+    name: "libactivity_manager_cc",
+    srcs: ["activity_manager.cpp"],
+    shared_libs: [
+        "libandroid",
+        "libbinder_ndk",
+        "liblog",
+    ],
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.uprobestats",
+    ],
+    min_sdk_version: "36",
+}
+
+rust_bindgen {
+    name: "libactivity_manager_bindgen",
+    crate_name: "activity_manager_bindgen",
+    defaults: ["uprobestats_apex_defaults"],
+    wrapper_src: "activity_manager_wrapper.h",
+    source_stem: "bindings",
+    shared_libs: [
+        "libactivity_manager_cc",
+        "libandroid",
+        "libbinder_ndk",
+    ],
+
+}

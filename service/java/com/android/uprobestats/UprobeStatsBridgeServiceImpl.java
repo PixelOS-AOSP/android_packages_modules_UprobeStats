@@ -27,6 +27,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.os.Handler;
+import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -85,29 +86,34 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             return latch; // Do not attempt to bind
         }
 
-        mContext.bindServiceAsUser(
-                new Intent().setComponent(dynamicInstrumentationEventConsumer),
-                new ServiceConnection() {
-                    @Override
-                    public void onServiceConnected(ComponentName name, IBinder service) {
-                        mEventListener = IUprobeStatsEventListener.Stub.asInterface(service);
-                        latch.countDown();
-                    }
+        final long callerToken = Binder.clearCallingIdentity();
+        try {
+            mContext.bindServiceAsUser(
+                    new Intent().setComponent(dynamicInstrumentationEventConsumer),
+                    new ServiceConnection() {
+                        @Override
+                        public void onServiceConnected(ComponentName name, IBinder service) {
+                            mEventListener = IUprobeStatsEventListener.Stub.asInterface(service);
+                            latch.countDown();
+                        }
 
-                    @Override
-                    public void onServiceDisconnected(ComponentName name) {
-                        mEventListener = null;
-                        latch.countDown();
-                    }
+                        @Override
+                        public void onServiceDisconnected(ComponentName name) {
+                            mEventListener = null;
+                            latch.countDown();
+                        }
 
-                    @Override
-                    public void onNullBinding(ComponentName name) {
-                        mEventListener = null;
-                        latch.countDown();
-                    }
-                },
-                Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
-                UserHandle.SYSTEM);
+                        @Override
+                        public void onNullBinding(ComponentName name) {
+                            mEventListener = null;
+                            latch.countDown();
+                        }
+                    },
+                    Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
+                    UserHandle.SYSTEM);
+        } finally {
+            Binder.restoreCallingIdentity(callerToken);
+        }
         return latch;
     }
 
@@ -158,8 +164,8 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             return false;
         }
 
-        List<AccessibilityServiceInfo> services = am.getEnabledAccessibilityServiceList(
-                AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
+        List<AccessibilityServiceInfo> services =
+                am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
         for (AccessibilityServiceInfo info : services) {
             if (info.getResolveInfo().serviceInfo.packageName.equals(packageName)) {
                 return true;

@@ -60,13 +60,13 @@ fn main_impl() -> Result<()> {
 fn handle_tasks() -> Result<()> {
     trace!("handle_tasks: NOT binder-service");
     let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
-    let (task, probes) = task::resolve_config(&config_bytes)?;
+    let task = task::resolve_config(&config_bytes)?;
 
     let state = Arc::new(Mutex::new(None));
     let mut state = state.lock().unwrap();
 
     task::update_polled_bpf_maps(&mut state, &task)?;
-    task::execute(&task, &probes);
+    task::execute(&task);
     task::cleanup_polled_bpf_maps(&mut state, &task);
 
     Ok(())

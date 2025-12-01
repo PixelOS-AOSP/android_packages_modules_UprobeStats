@@ -33,7 +33,7 @@ impl IUprobeStatsService for UprobeStatsService {
     fn startTasks(&self, config: &[u8]) -> Result<(), Status> {
         trace!("received startTasks call");
 
-        let (task, probes) = task::resolve_config(config)
+        let task = task::resolve_config(config)
             .inspect_err(|e| error!("{e}"))
             .or_service_specific_exception(FAILURE_CONFIG_RESOLUTION)?;
 
@@ -44,7 +44,7 @@ impl IUprobeStatsService for UprobeStatsService {
 
         let state = self.state.clone();
         thread::spawn(move || {
-            task::execute(&task, &probes);
+            task::execute(&task);
             let mut state = state.lock().unwrap();
             task::cleanup_polled_bpf_maps(&mut state, &task);
         });

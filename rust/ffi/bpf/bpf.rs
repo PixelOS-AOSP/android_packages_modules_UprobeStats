@@ -27,9 +27,7 @@ use uprobestats_bpf_bindgen::{
     bpfMapClose, bpfMapDeleteElem, bpfMapGetFirstKey, bpfMapLookupElem, bpfMapOpenExclusiveRW,
     bpfMapUpdateElem, bpfPerfEventOpen, pollRingBuf, BpfMapHandle,
 };
-
-mod c_string;
-use c_string::c_string;
+use uprobestats_c_string::c_string;
 
 /// Polls the BPF ring buffer at the passed `map_path`, collecting any values
 /// emitted within `timeout_ms` into a `Vec<T>`, where `T` is expected to be
