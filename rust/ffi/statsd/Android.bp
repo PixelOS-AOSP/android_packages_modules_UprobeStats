@@ -9,6 +9,7 @@ rust_library {
     rustlibs: [
         "libstatssocket_bindgen",
         "libuprobestats_c_string",
+        "libuprobestats_core",
     ],
 }
 

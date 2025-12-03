@@ -1,16 +1,23 @@
+use crate::{
+    atom::{AtomWriter, Field, UnstructuredAtom, Value},
+    bpf_handler::Handler,
+    config_resolver::ResolvedTask,
+    string::bytes_as_str,
+};
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use protobuf::MessageField;
-use statssocket::AStatsEvent;
-use uprobestats_bpf_bindgen::{StartActivityAsUser, UpdateDeviceIdleTempAllowlistRecord};
-use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
+use uprobestats_bpf_structs::{StartActivityAsUser, UpdateDeviceIdleTempAllowlistRecord};
 
+/// Test handler for JIT compiled code.
 #[derive(Default)]
-pub(crate) struct JitHandler {}
+pub struct JitHandler<A> {
+    writer: A,
+}
 
 // SAFETY: `StartActivityAsUser` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl Handler for JitHandler {
+unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for JitHandler<A> {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_ArtTest_output_buf_jit";
     type T = StartActivityAsUser;
     fn on_item(&mut self, task: &ResolvedTask, item: &StartActivityAsUser) -> Result<()> {
@@ -38,22 +45,30 @@ unsafe impl Handler for JitHandler {
             .atom_id
             .ok_or(anyhow!("atom_id required if statsd_logging_config provided"))?;
 
-        let mut event = AStatsEvent::new(atom_id.try_into()?);
-        event.write_int64(item.validate_incoming_user.into());
-        event.write_int64(item.user_id.into());
-        event.write_int64(string_to_i64_hash(calling_package));
-        event.write();
+        let atom = UnstructuredAtom {
+            atom_id: atom_id.try_into().unwrap(),
+            fields: vec![
+                Field::new(Value::Int64(item.validate_incoming_user.into())),
+                Field::new(Value::Int64(item.user_id.into())),
+                Field::new(Value::Int64(string_to_i64_hash(calling_package))),
+            ],
+        };
+        self.writer.write(atom)?;
+
         debug!("successfully wrote atom id: {atom_id}");
         Ok(())
     }
 }
 
+/// Test handler for AOT compiled code.
 #[derive(Default)]
-pub(crate) struct AotHandler {}
+pub struct AotHandler<A> {
+    writer: A,
+}
 
 // SAFETY: `UpdateDeviceIdleTempAllowlistRecord` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl Handler for AotHandler {
+unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for AotHandler<A> {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_ArtTest_output_buf_aot";
     type T = UpdateDeviceIdleTempAllowlistRecord;
     fn on_item(
@@ -91,12 +106,18 @@ unsafe impl Handler for AotHandler {
             .atom_id
             .ok_or(anyhow!("atom_id required if statsd_logging_config provided"))?;
 
-        let mut event = AStatsEvent::new(atom_id.try_into()?);
-        event.write_int64(item.adding.into());
-        event.write_int64(item.reason_code.into());
         let reason = bytes_as_str(&item.reason)?;
-        event.write_int64(string_to_i64_hash(reason));
-        event.write();
+
+        let atom = UnstructuredAtom {
+            atom_id: atom_id.try_into()?,
+            fields: vec![
+                Field::new(Value::Int64(item.adding.into())),
+                Field::new(Value::Int64(item.reason_code.into())),
+                Field::new(Value::Int64(string_to_i64_hash(reason))),
+            ],
+        };
+        self.writer.write(atom)?;
+
         debug!("successfully wrote atom id: {atom_id}");
         Ok(())
     }

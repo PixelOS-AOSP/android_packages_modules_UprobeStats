@@ -1,24 +1,31 @@
-rust_library {
-    name: "libuprobestats_core",
-    crate_name: "uprobestats_core",
+rust_defaults {
+    name: "uprobestats_core_defaults",
     defaults: [
         "uprobestats_apex_defaults",
         "uprobestats_core_rustlibs_defaults",
         "uprobestats_flags_rustlibs_defaults",
         "uprobestats_proto_rustlibs_defaults",
     ],
-    rustlibs: ["libzerocopy"],
     srcs: ["uprobestats_core.rs"],
+    rustlibs: [
+        "libuprobestats_bpf_structs",
+        "libzerocopy",
+    ],
+    features: select(product_variable("debuggable"), {
+        true: ["art-test"],
+        false: [],
+    }),
+}
+
+rust_library {
+    name: "libuprobestats_core",
+    crate_name: "uprobestats_core",
+    defaults: ["uprobestats_core_defaults"],
 }
 
 rust_test_host {
     name: "uprobestats-core-test",
-    defaults: [
-        "uprobestats_core_rustlibs_defaults",
-        "uprobestats_flags_rustlibs_defaults",
-        "uprobestats_proto_rustlibs_defaults",
-    ],
-    rustlibs: ["libzerocopy"],
-    srcs: ["uprobestats_core.rs"],
+    defaults: ["uprobestats_core_defaults"],
+    rustlibs: ["libmockall"],
     test_suites: ["general-tests"],
 }

@@ -11,12 +11,15 @@ use crate::bpf_map::process_management::{
 };
 use anyhow::{bail, Result};
 use log::{debug, trace};
+use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
     bpf_map_close, bpf_map_delete_elem, bpf_map_get_first_key, bpf_map_lookup_elem,
     bpf_map_open_exclusive_rw, bpf_map_update_elem, poll_ring_buf, UpdateMapElemFlags,
 };
 use uprobestats_bpf_bindgen::BpfMapHandle;
+#[cfg(feature = "art-test")]
+use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
 use uprobestats_core::{
     bpf_handler::{Handler, HandlerRegistry},
     config_resolver::ResolvedTask,
@@ -25,9 +28,6 @@ use uprobestats_core::{
 
 #[cfg(feature = "bridge-service")]
 mod accessibility;
-/// A module only for testing JIT integration.
-#[cfg(feature = "art-test")]
-pub mod art_test;
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
@@ -200,8 +200,8 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     }
     #[cfg(feature = "art-test")]
     {
-        register_handler::<art_test::JitHandler>(&mut map);
-        register_handler::<art_test::AotHandler>(&mut map);
+        register_handler::<JitHandler<AStatsEventWriter>>(&mut map);
+        register_handler::<AotHandler<AStatsEventWriter>>(&mut map);
     }
     map
 });

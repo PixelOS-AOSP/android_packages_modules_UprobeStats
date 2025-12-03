@@ -31,7 +31,7 @@ unsafe impl Handler for CallTimestampHandler {
         let mut event = AStatsEvent::new(atom_id.try_into()?);
         event.write_int32(data.event.try_into()?);
         event.write_int64(data.timestampNs.try_into()?);
-        event.write();
+        event.write()?;
         debug!("successfully wrote atom id: {atom_id}");
         Ok(())
     }
@@ -74,7 +74,7 @@ unsafe impl Handler for CallResultHandler {
             event.write_int32(primitive_argument);
         }
 
-        event.write();
+        event.write()?;
         debug!("successfully wrote atom id: {atom_id}");
 
         Ok(())

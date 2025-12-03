@@ -80,7 +80,7 @@ unsafe impl Handler for AccessibilityHandler {
                     .map(|(_, t)| t.as_millis().try_into().map_err(|e: TryFromIntError| anyhow!(e)))
                     .collect::<Result<Vec<i64>>>()?,
             );
-            event.write();
+            event.write()?;
             trace!("wrote atom {ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT} for permission {permission_name}");
         }
         Ok(())
