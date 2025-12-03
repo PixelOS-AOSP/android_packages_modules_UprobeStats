@@ -1,5 +1,5 @@
+use crate::bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use crate::is_user_build;
-use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use statslog_uprobestats::{
