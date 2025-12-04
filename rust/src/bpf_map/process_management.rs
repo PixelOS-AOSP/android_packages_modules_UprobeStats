@@ -37,7 +37,7 @@ unsafe impl Handler for SetUidTempAllowlistStateRecordHandler {
         event.write_int32(data.uid.try_into()?);
         event.write_bool(data.onAllowlist);
 
-        event.write();
+        event.write()?;
         debug!("successfully wrote atom id: {atom_id}");
 
         Ok(())
@@ -80,7 +80,7 @@ unsafe impl Handler for UpdateDeviceIdleTempAllowlistRecordHandler {
         event.write_string(bytes_as_str(&data.reason)?)?;
         event.write_int32(data.calling_uid);
 
-        event.write();
+        event.write()?;
         debug!("successfully wrote atom id: {atom_id}");
 
         Ok(())

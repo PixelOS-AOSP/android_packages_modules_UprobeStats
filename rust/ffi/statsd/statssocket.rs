@@ -1,5 +1,5 @@
 //! Bindings for AStatsEvent NDK API.
-use anyhow::Result;
+use anyhow::{bail, Result};
 use statssocket_bindgen::{
     AStatsEvent as AStatsEvent_raw, AStatsEvent_addBoolAnnotation, AStatsEvent_obtain,
     AStatsEvent_release, AStatsEvent_setAtomId, AStatsEvent_write, AStatsEvent_writeBool,
@@ -8,6 +8,7 @@ use statssocket_bindgen::{
 };
 use std::ptr::NonNull;
 use uprobestats_c_string::c_string;
+use uprobestats_core::atom::{AtomWriter, Field, FieldAnnotation, UnstructuredAtom, Value};
 
 pub use statssocket_bindgen::AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID;
 
@@ -79,9 +80,14 @@ impl AStatsEvent {
     }
 
     /// Write the event to statsd.
-    pub fn write(mut self) {
+    pub fn write(mut self) -> Result<()> {
         // SAFETY: `self` is an owned reference to a non-null `AStatsEvent_raw`.
-        unsafe { AStatsEvent_write(self.as_ptr()) };
+        let res = unsafe { AStatsEvent_write(self.as_ptr()) };
+        if res != 0 {
+            bail!("Failed to write event. Error code: {res}")
+        } else {
+            Ok(())
+        }
     }
 
     fn as_ptr(&mut self) -> *mut AStatsEvent_raw {
@@ -93,5 +99,50 @@ impl Drop for AStatsEvent {
     fn drop(&mut self) {
         // SAFETY: `&mut self` is an exclusive reference to a non-null `AStatsEvent_raw`.
         unsafe { AStatsEvent_release(self.as_ptr()) };
+    }
+}
+
+/// Implementation of `AtomWriter` for `AStatsEvent`.
+#[derive(Default)]
+pub struct AStatsEventWriter {}
+impl AtomWriter<UnstructuredAtom> for AStatsEventWriter {
+    fn write(&mut self, atom: UnstructuredAtom) -> Result<()> {
+        let mut event = AStatsEvent::new(atom.atom_id);
+        for Field { value, annotations } in atom.fields {
+            match value {
+                Value::Bool(value) => {
+                    event.write_bool(value);
+                    Ok(())
+                }
+                Value::Int32(value) => {
+                    event.write_int32(value);
+                    Ok(())
+                }
+                Value::Int64(value) => {
+                    event.write_int64(value);
+                    Ok(())
+                }
+                Value::String(value) => event.write_string(&value),
+                Value::Int32Vec(value) => {
+                    event.write_int32_slice(&value);
+                    Ok(())
+                }
+                Value::Int64Vec(value) => {
+                    event.write_int64_slice(&value);
+                    Ok(())
+                }
+            }?;
+            for annotation in annotations {
+                match annotation {
+                    FieldAnnotation::IsUid(value) => {
+                        event.add_bool_annotation(
+                            AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID,
+                            value,
+                        );
+                    }
+                }
+            }
+        }
+        event.write()
     }
 }

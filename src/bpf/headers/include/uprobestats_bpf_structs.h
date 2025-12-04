@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <stdint.h>
 #include <sys/types.h>
 
 #define MAX_STRING_LENGTH 128
@@ -64,7 +65,7 @@ struct CallResult {
 };
 
 struct SetUidTempAllowlistStateRecord {
-  __u64 uid;
+  uint64_t uid;
   bool onAllowlist;
 };
 
@@ -101,19 +102,19 @@ struct ProcessChange {
   char process_name[256];
 };
 
-const __u32 K_BITMAP_EVENT_TYPE_ALLOCATION = 0;
-const __u32 K_BITMAP_EVENT_TYPE_DEALLOCATION = 1;
-const __u32 K_BITMAP_EVENT_TYPE_ACTIVITY_START = 2;
-const __u32 K_BITMAP_EVENT_TYPE_BITMAP_SCALED = 3;
+const uint32_t K_BITMAP_EVENT_TYPE_ALLOCATION = 0;
+const uint32_t K_BITMAP_EVENT_TYPE_DEALLOCATION = 1;
+const uint32_t K_BITMAP_EVENT_TYPE_ACTIVITY_START = 2;
+const uint32_t K_BITMAP_EVENT_TYPE_BITMAP_SCALED = 3;
 
 struct BitmapEvent {
-  __u32 type;
-  __u32 width;
-  __u32 height;
-  __u32 scaled_width;
-  __u32 scaled_height;
-  __u32 pixel_storage_type;
-  __u32 bitmap_size;
+  uint32_t type;
+  uint32_t width;
+  uint32_t height;
+  uint32_t scaled_width;
+  uint32_t scaled_height;
+  uint32_t pixel_storage_type;
+  uint32_t bitmap_size;
   void *native_ptr;
   char activity_name[128];
 };
