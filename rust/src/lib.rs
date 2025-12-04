@@ -1,10 +1,10 @@
 //! UprobeStats library
 pub mod bpf_map;
-#[cfg(feature = "bridge-service")]
-mod bridge_service;
 mod process;
 mod resolver_impl;
 pub mod task;
+#[cfg(feature = "bridge-service")]
+mod uprobestats_bridge_service;
 #[cfg(feature = "binder-service")]
 pub mod uprobestats_service;
 
