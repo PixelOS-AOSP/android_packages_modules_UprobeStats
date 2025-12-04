@@ -3,6 +3,7 @@ rust_defaults {
     defaults: [
         "uprobestats_apex_defaults",
         "uprobestats_core_rustlibs_defaults",
+        "uprobestats_features_defaults",
         "uprobestats_flags_rustlibs_defaults",
         "uprobestats_proto_rustlibs_defaults",
     ],
@@ -13,10 +14,6 @@ rust_defaults {
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
     ],
-    features: select(product_variable("debuggable"), {
-        true: ["art-test"],
-        false: [],
-    }),
 }
 
 rust_library {

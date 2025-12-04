@@ -36,3 +36,17 @@ rust_defaults {
         "libuprobestats_proto",
     ],
 }
+
+rust_defaults {
+    name: "uprobestats_features_defaults",
+    features: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: ["bridge-service"],
+        default: [],
+    }) + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
+        true: ["binder-service"],
+        default: [],
+    }) + select(product_variable("debuggable"), {
+        true: ["art-test"],
+        false: [],
+    }),
+}

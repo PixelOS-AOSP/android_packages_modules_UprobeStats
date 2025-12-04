@@ -1,18 +1,20 @@
-use anyhow::{anyhow, bail, Result};
-use log::{debug, trace};
-use statssocket::{AStatsEvent, AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID};
-use std::collections::HashMap;
-use std::num::TryFromIntError;
-use std::time::Duration;
-use uprobestats_bpf_bindgen::AccessibilityEvent;
-use uprobestats_core::{
-    bpf_handler::Handler, bridge_service::UprobeStatsBridgeService, config_resolver::ResolvedTask,
+use crate::{
+    atom::{AtomWriter, Field, FieldAnnotation, UnstructuredAtom, Value},
+    bpf_handler::Handler,
+    bridge_service::UprobeStatsBridgeService,
+    config_resolver::ResolvedTask,
     string::bytes_as_str,
 };
+use anyhow::{anyhow, bail, Result};
+use log::{debug, trace};
+use std::{collections::HashMap, num::TryFromIntError, time::Duration};
+use uprobestats_bpf_structs::AccessibilityEvent;
 
+/// a11y handler
 #[derive(Default)]
-pub struct AccessibilityHandler<B> {
+pub struct AccessibilityHandler<A, B> {
     events: HashMap<i32, Vec<Event>>,
+    writer: A,
     bridge_service: B,
 }
 
@@ -21,7 +23,9 @@ const ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT: u32 = 1217;
 
 // SAFETY: `AccessibilityEvent` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl<B: UprobeStatsBridgeService> Handler for AccessibilityHandler<B> {
+unsafe impl<A: AtomWriter<UnstructuredAtom>, B: UprobeStatsBridgeService> Handler
+    for AccessibilityHandler<A, B>
+{
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Accessibility_output_buf";
     type T = AccessibilityEvent;
     fn on_item(&mut self, _task: &ResolvedTask, data: &AccessibilityEvent) -> Result<()> {
@@ -59,8 +63,8 @@ unsafe impl<B: UprobeStatsBridgeService> Handler for AccessibilityHandler<B> {
         for AccessibilityRuntimePermissionGrant {
             uid,
             timestamp,
-            permission_name,
-            preceding_a11y_calls,
+            ref permission_name,
+            ref preceding_a11y_calls,
         } in a11y_runtime_permission_grants
         {
             debug!("uid={uid}, timestamp={:?}, permission_name={permission_name}", timestamp);
@@ -69,21 +73,26 @@ unsafe impl<B: UprobeStatsBridgeService> Handler for AccessibilityHandler<B> {
             }
             // Log all runtime permission grants for apps with enabled a11y services. If the permission grant was driven by the same app using a11y,
             // it should be represented in `preceding_a11y_calls`.
-            let mut event = AStatsEvent::new(ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT);
-            event.write_int32(uid);
-            event.add_bool_annotation(AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID, true);
-            event.write_string(&permission_name)?;
-            event.write_int64(timestamp.as_millis().try_into()?);
-            event.write_int32_slice(
-                &preceding_a11y_calls.iter().map(|(c, _)| *c).collect::<Vec<i32>>(),
-            );
-            event.write_int64_slice(
-                &preceding_a11y_calls
-                    .iter()
-                    .map(|(_, t)| t.as_millis().try_into().map_err(|e: TryFromIntError| anyhow!(e)))
-                    .collect::<Result<Vec<i64>>>()?,
-            );
-            event.write()?;
+            let atom = UnstructuredAtom {
+                atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+                fields: vec![
+                    Field::new_with_annotation(Value::Int32(uid), FieldAnnotation::IsUid(true)),
+                    Field::new(Value::String(permission_name.to_string())),
+                    Field::new(Value::Int64(timestamp.as_millis().try_into()?)),
+                    Field::new(Value::Int32Vec(
+                        preceding_a11y_calls.iter().map(|(c, _)| *c).collect::<Vec<i32>>(),
+                    )),
+                    Field::new(Value::Int64Vec(
+                        preceding_a11y_calls
+                            .iter()
+                            .map(|(_, t)| {
+                                t.as_millis().try_into().map_err(|e: TryFromIntError| anyhow!(e))
+                            })
+                            .collect::<Result<Vec<i64>>>()?,
+                    )),
+                ],
+            };
+            self.writer.write(atom)?;
             trace!("wrote atom {ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT} for permission {permission_name}");
         }
         Ok(())

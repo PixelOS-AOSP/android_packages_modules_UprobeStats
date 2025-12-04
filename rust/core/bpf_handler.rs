@@ -3,6 +3,9 @@ use crate::config_resolver::ResolvedTask;
 use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 
+#[cfg(feature = "bridge-service")]
+/// a11y handler
+pub mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;

@@ -1,6 +1,4 @@
 //! Deals with fetching data BPF ring buffers ("maps").
-#[cfg(feature = "bridge-service")]
-use crate::bpf_map::accessibility::AccessibilityHandler;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
 #[cfg(feature = "bridge-service")]
@@ -13,7 +11,6 @@ use crate::bpf_map::process_management::{
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use anyhow::{bail, Result};
 use log::{debug, trace};
-#[cfg(feature = "art-test")]
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
@@ -21,6 +18,8 @@ use uprobestats_bpf::{
     bpf_map_open_exclusive_rw, bpf_map_update_elem, poll_ring_buf, UpdateMapElemFlags,
 };
 use uprobestats_bpf_bindgen::BpfMapHandle;
+#[cfg(feature = "bridge-service")]
+use uprobestats_core::bpf_handler::accessibility::AccessibilityHandler;
 #[cfg(feature = "art-test")]
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
 use uprobestats_core::{
@@ -29,8 +28,6 @@ use uprobestats_core::{
     timer::Timer,
 };
 
-#[cfg(feature = "bridge-service")]
-mod accessibility;
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
@@ -194,7 +191,9 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     #[cfg(feature = "bridge-service")]
     {
         if uprobestats_flags_rust::a11y_runtime_permission() {
-            register_handler::<AccessibilityHandler<DefaultUprobeStatsBridgeService>>(&mut map);
+            register_handler::<
+                AccessibilityHandler<AStatsEventWriter, DefaultUprobeStatsBridgeService>,
+            >(&mut map);
         }
         if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
             register_handler::<BindServiceLockedHandler>(&mut map);

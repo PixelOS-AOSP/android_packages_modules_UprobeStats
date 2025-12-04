@@ -4,6 +4,7 @@ rust_library {
     defaults: [
         "uprobestats_apex_defaults",
         "uprobestats_core_rustlibs_defaults",
+        "uprobestats_features_defaults",
         "uprobestats_flags_rustlibs_defaults",
         "uprobestats_proto_rustlibs_defaults",
     ],
@@ -23,16 +24,6 @@ rust_library {
         "uprobestats-bridge-service-aidl-rust",
         "uprobestats-service-aidl-rust",
     ],
-    features: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
-        true: ["bridge-service"],
-        default: [],
-    }) + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
-        true: ["binder-service"],
-        default: [],
-    }) + select(product_variable("debuggable"), {
-        true: ["art-test"],
-        false: [],
-    }),
 }
 
 rust_binary {
@@ -45,6 +36,7 @@ rust_binary {
     srcs: ["main.rs"],
     defaults: [
         "uprobestats_apex_defaults",
+        "uprobestats_features_defaults",
         "uprobestats_core_rustlibs_defaults",
     ],
     prefer_rlib: true,
@@ -55,8 +47,4 @@ rust_binary {
         "libuprobestats_rs",
         "uprobestats-service-aidl-rust",
     ],
-    features: select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
-        true: ["binder-service"],
-        default: [],
-    }),
 }

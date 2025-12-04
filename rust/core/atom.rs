@@ -1,5 +1,6 @@
 //! Abstraction for dealing with statsd atoms.
 use anyhow::Result;
+use std::time::Duration;
 
 /// Trait for something that can write atoms. Implemented by statsd libraries, abstracted for tests.
 pub trait AtomWriter<A> {
@@ -51,6 +52,30 @@ pub enum Value {
 pub enum FieldAnnotation {
     /// Whether the field is a uid.
     IsUid(bool),
+}
+
+/// Mirrors the same atom in uprobestats_extesion_atoms.proto
+pub struct AccessibilityRuntimePermissionGrantReported {
+    /// See proto for documentation.
+    pub uid: i32,
+    /// See proto for documentation.
+    pub timestamp: Duration,
+    /// See proto for documentation.
+    pub permission_name: String,
+    /// See proto for documentation.
+    pub preceding_a11y_calls: Vec<(i32, Duration)>,
+}
+
+impl AccessibilityRuntimePermissionGrantReported {
+    /// Constructor
+    pub fn new(uid: i32, timestamp: &Duration, permission_name: &str) -> Self {
+        Self {
+            uid,
+            timestamp: *timestamp,
+            permission_name: permission_name.to_string(),
+            preceding_a11y_calls: vec![],
+        }
+    }
 }
 
 #[cfg(test)]
