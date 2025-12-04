@@ -8,10 +8,8 @@ rust_defaults {
     ],
     srcs: ["uprobestats_core.rs"],
     rustlibs: [
-        "libbinder_rs",
         "libuprobestats_bpf_structs",
         "libzerocopy",
-        "uprobestats-bridge-service-aidl-rust",
     ],
     features: select(product_variable("debuggable"), {
         true: ["art-test"],

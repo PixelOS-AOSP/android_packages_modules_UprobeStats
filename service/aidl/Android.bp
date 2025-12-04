@@ -28,7 +28,6 @@ aidl_interface {
     srcs: [":uprobestats-bridge-service-aidl-sources"],
     unstable: true,
     min_sdk_version: "36",
-    host_supported: true,
     backend: {
         java: {
             additional_libs: ["framework-annotations-lib"],
@@ -36,10 +35,6 @@ aidl_interface {
         },
         rust: {
             apex_available: ["com.android.uprobestats"],
-            gen_mockall: true,
-            additional_rustlibs: [
-                "libmockall",
-            ],
         },
     },
 }
