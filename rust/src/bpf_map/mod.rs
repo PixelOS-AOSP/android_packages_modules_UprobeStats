@@ -11,6 +11,7 @@ use crate::bpf_map::process_management::{
 };
 use anyhow::{bail, Result};
 use log::{debug, trace};
+#[cfg(feature = "art-test")]
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
