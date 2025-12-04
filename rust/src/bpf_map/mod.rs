@@ -9,6 +9,7 @@ use crate::bpf_map::generic_instrumentation::{CallResultHandler, CallTimestampHa
 use crate::bpf_map::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
 };
+use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use anyhow::{bail, Result};
 use log::{debug, trace};
 use statssocket::AStatsEventWriter;
@@ -191,7 +192,7 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     #[cfg(feature = "bridge-service")]
     {
         if uprobestats_flags_rust::a11y_runtime_permission() {
-            register_handler::<AccessibilityHandler>(&mut map);
+            register_handler::<AccessibilityHandler<DefaultUprobeStatsBridgeService>>(&mut map);
         }
         if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
             register_handler::<BindServiceLockedHandler>(&mut map);

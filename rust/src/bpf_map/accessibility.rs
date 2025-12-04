@@ -1,4 +1,3 @@
-use crate::uprobestats_bridge_service::UPROBESTATS_BRIDGE_SERVICE;
 use anyhow::{anyhow, bail, Result};
 use log::{debug, trace};
 use statssocket::{AStatsEvent, AnnotationIds_ASTATSLOG_ANNOTATION_ID_IS_UID};
@@ -6,11 +5,15 @@ use std::collections::HashMap;
 use std::num::TryFromIntError;
 use std::time::Duration;
 use uprobestats_bpf_bindgen::AccessibilityEvent;
-use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
+use uprobestats_core::{
+    bpf_handler::Handler, bridge_service::UprobeStatsBridgeService, config_resolver::ResolvedTask,
+    string::bytes_as_str,
+};
 
 #[derive(Default)]
-pub struct AccessibilityHandler {
+pub struct AccessibilityHandler<B> {
     events: HashMap<i32, Vec<Event>>,
+    bridge_service: B,
 }
 
 const A11Y_EVENT_WINDOW: Duration = Duration::from_secs(10);
@@ -18,7 +21,7 @@ const ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT: u32 = 1217;
 
 // SAFETY: `AccessibilityEvent` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl Handler for AccessibilityHandler {
+unsafe impl<B: UprobeStatsBridgeService> Handler for AccessibilityHandler<B> {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Accessibility_output_buf";
     type T = AccessibilityEvent;
     fn on_item(&mut self, _task: &ResolvedTask, data: &AccessibilityEvent) -> Result<()> {
@@ -28,7 +31,7 @@ unsafe impl Handler for AccessibilityHandler {
         let variant = data.variant;
         trace!("variant={variant}, timestamp_ns={timestamp_ns}");
         let event: Result<Option<Event>> = if data.variant == 1 {
-            handle_permission_grant_event(data, timestamp_ns)
+            handle_permission_grant_event(&mut self.bridge_service, data, timestamp_ns)
         } else if data.variant == 2 {
             handle_a11y_event(data, timestamp_ns)
         } else {
@@ -87,7 +90,8 @@ unsafe impl Handler for AccessibilityHandler {
     }
 }
 
-fn handle_permission_grant_event(
+fn handle_permission_grant_event<B: UprobeStatsBridgeService>(
+    service: &mut B,
     data: &AccessibilityEvent,
     timestamp_ns: u64,
 ) -> Result<Option<Event>> {
@@ -102,8 +106,8 @@ fn handle_permission_grant_event(
         return Ok(None);
     }
 
-    let service = UPROBESTATS_BRIDGE_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
-    let has_enabled_a11y_service = service.packageHasEnabledAccessibilityService(package_name)?;
+    let has_enabled_a11y_service =
+        service.get()?.packageHasEnabledAccessibilityService(package_name)?;
     trace!("has_enabled_a11y_service={has_enabled_a11y_service}");
 
     // Only log if the package in question also has an enabled a11y service.
@@ -111,7 +115,7 @@ fn handle_permission_grant_event(
         return Ok(None);
     }
 
-    let uid = service.getUidForPackage(package_name)?;
+    let uid = service.get()?.getUidForPackage(package_name)?;
 
     trace!("uid={uid}");
 
