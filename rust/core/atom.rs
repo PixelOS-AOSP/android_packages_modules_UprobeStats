@@ -10,6 +10,7 @@ pub trait AtomWriter<A> {
 
 /// An unstructured atom is one that doesn't have a compile-time defined structure, and is
 /// described by an atom id and a sequence of values.
+#[derive(Debug, PartialEq, Clone)]
 pub struct UnstructuredAtom {
     /// The atom id.
     pub atom_id: u32,
@@ -18,6 +19,7 @@ pub struct UnstructuredAtom {
 }
 
 /// A field in an atom.
+#[derive(Debug, PartialEq, Clone)]
 pub struct Field {
     /// The actual data.
     pub value: Value,
@@ -39,6 +41,7 @@ impl Field {
 
 /// A value in a field.
 #[allow(missing_docs)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     Bool(bool),
     Int32(i32),
@@ -49,6 +52,7 @@ pub enum Value {
 }
 
 /// An annotation on a field.
+#[derive(Debug, PartialEq, Clone)]
 pub enum FieldAnnotation {
     /// Whether the field is a uid.
     IsUid(bool),
@@ -81,9 +85,14 @@ impl AccessibilityRuntimePermissionGrantReported {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    #[allow(unused)]
     pub(crate) struct TestAtomWriter<A> {
         pub(crate) written: Vec<A>,
+    }
+
+    impl<A> Default for TestAtomWriter<A> {
+        fn default() -> Self {
+            Self { written: vec![] }
+        }
     }
 
     impl<A> AtomWriter<A> for TestAtomWriter<A> {

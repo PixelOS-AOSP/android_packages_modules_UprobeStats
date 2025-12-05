@@ -115,8 +115,8 @@ fn handle_permission_grant_event<B: UprobeStatsBridgeService>(
         return Ok(None);
     }
 
-    let has_enabled_a11y_service =
-        service.get()?.packageHasEnabledAccessibilityService(package_name)?;
+    let service = service.get()?;
+    let has_enabled_a11y_service = service.packageHasEnabledAccessibilityService(package_name)?;
     trace!("has_enabled_a11y_service={has_enabled_a11y_service}");
 
     // Only log if the package in question also has an enabled a11y service.
@@ -124,7 +124,7 @@ fn handle_permission_grant_event<B: UprobeStatsBridgeService>(
         return Ok(None);
     }
 
-    let uid = service.get()?.getUidForPackage(package_name)?;
+    let uid = service.getUidForPackage(package_name)?;
 
     trace!("uid={uid}");
 
@@ -233,5 +233,587 @@ impl AccessibilityRuntimePermissionGrant {
             permission_name: permission_name.to_string(),
             preceding_a11y_calls: vec![],
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{
+        atom::test::TestAtomWriter, bridge_service::test::TestUprobeStatsBridgeService,
+        config_resolver::ResolvedTask,
+    };
+    use binder::Status;
+    use mockall::predicate::*;
+    use std::collections::HashSet;
+    use std::sync::{Arc, Mutex};
+    use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::IUprobeStatsBridgeService::MockIUprobeStatsBridgeService;
+    use uprobestats_proto::config::uprobestats_config::Task;
+    use zerocopy::FromBytes;
+
+    const TEST_PACKAGE_NAME: &str = "pkg.name";
+    const TEST_PERMISSION_NAME: &str = "android.permission.A";
+    const TEST_UID: i32 = 123;
+    const TEST_A11Y_CODE: i32 = 456;
+
+    fn setup_handler_and_task(
+        mock_bridge: MockIUprobeStatsBridgeService,
+    ) -> (
+        AccessibilityHandler<TestAtomWriter<UnstructuredAtom>, TestUprobeStatsBridgeService>,
+        ResolvedTask,
+    ) {
+        let test_bridge = TestUprobeStatsBridgeService { mock: Arc::new(Mutex::new(mock_bridge)) };
+        let handler = AccessibilityHandler {
+            events: HashMap::new(),
+            writer: TestAtomWriter::<UnstructuredAtom>::default(),
+            bridge_service: test_bridge,
+        };
+        let task = ResolvedTask {
+            task: Task::new(),
+            pid: 0,
+            uid: TEST_UID,
+            process_name: TEST_PACKAGE_NAME.to_string(),
+            duration_seconds: 0,
+            resolved_probes: vec![],
+            bpf_map_paths: HashSet::new(),
+        };
+        (handler, task)
+    }
+
+    fn create_permission_event(
+        pkg_name: &str,
+        perm_name: &str,
+        timestamp: Duration,
+    ) -> AccessibilityEvent {
+        let mut permission_event = AccessibilityEvent {
+            variant: 1,
+            timestamp_ns: timestamp.as_nanos().try_into().unwrap(),
+            uid: 0,
+            code: 0,
+            package_name: [0; 128],
+            permission_name: [0; 128],
+        };
+
+        let pkg_name: &[i8] = FromBytes::ref_from_bytes(pkg_name.as_bytes())
+            .expect("Always valid to convert [u8] to [i8].");
+        permission_event.package_name[..pkg_name.len()].copy_from_slice(pkg_name);
+
+        let perm_name: &[i8] = FromBytes::ref_from_bytes(perm_name.as_bytes())
+            .expect("Always valid to convert [u8] to [i8].");
+        permission_event.permission_name[..perm_name.len()].copy_from_slice(perm_name);
+
+        permission_event
+    }
+
+    fn create_a11y_event(uid: i32, code: i32, timestamp: Duration) -> AccessibilityEvent {
+        AccessibilityEvent {
+            variant: 2,
+            uid,
+            code,
+            timestamp_ns: timestamp.as_nanos().try_into().unwrap(),
+            package_name: [0; 128],
+            permission_name: [0; 128],
+        }
+    }
+
+    #[test]
+    fn permission_grant_after_a11y_event_is_reported() -> Result<()> {
+        let a11y_timestamp = Duration::from_secs(1);
+        let permission_timestamp = Duration::from_secs(2);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(move |_| Ok(TEST_UID));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(TEST_PACKAGE_NAME, TEST_PERMISSION_NAME, permission_timestamp),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 1);
+        let atom = handler.writer.written[0].clone();
+
+        let expected = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(TEST_PERMISSION_NAME.to_string())),
+                Field::new(Value::Int64(permission_timestamp.as_millis().try_into().unwrap())),
+                Field::new(Value::Int32Vec(vec![TEST_A11Y_CODE])),
+                Field::new(Value::Int64Vec(vec![a11y_timestamp.as_millis().try_into().unwrap()])),
+            ],
+        };
+
+        assert_eq!(atom, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn non_android_permission_is_ignored() -> Result<()> {
+        let mock_bridge = MockIUprobeStatsBridgeService::new();
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        let permission_event = create_permission_event(
+            TEST_PACKAGE_NAME,
+            "com.example.permission",
+            Duration::from_millis(2000),
+        );
+        handler.on_item(&task, &permission_event)?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_enabled_a11y_service_is_ignored() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(false));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        let permission_event = create_permission_event(
+            TEST_PACKAGE_NAME,
+            TEST_PERMISSION_NAME,
+            Duration::from_millis(2000),
+        );
+        handler.on_item(&task, &permission_event)?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn package_has_enabled_a11y_service_error_is_propagated() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Err(Status::new_service_specific_error(-1, None)));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        let permission_event = create_permission_event(
+            TEST_PACKAGE_NAME,
+            TEST_PERMISSION_NAME,
+            Duration::from_millis(2000),
+        );
+        let result = handler.on_item(&task, &permission_event);
+
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_uid_for_package_error_is_propagated() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Err(Status::new_service_specific_error(-1, None)));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        let permission_event = create_permission_event(
+            TEST_PACKAGE_NAME,
+            TEST_PERMISSION_NAME,
+            Duration::from_millis(2000),
+        );
+        let result = handler.on_item(&task, &permission_event);
+
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn a11y_event_after_permission_grant_is_ignored() -> Result<()> {
+        let permission_timestamp = Duration::from_millis(1);
+        let a11y_timestamp = Duration::from_millis(2);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(move |_| Ok(TEST_UID));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(TEST_PACKAGE_NAME, TEST_PERMISSION_NAME, permission_timestamp),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 1);
+        let atom = handler.writer.written[0].clone();
+
+        let expected = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(TEST_PERMISSION_NAME.to_string())),
+                Field::new(Value::Int64(permission_timestamp.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![])),
+                Field::new(Value::Int64Vec(vec![])),
+            ],
+        };
+
+        assert_eq!(atom, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn a11y_event_outside_window_is_ignored() -> Result<()> {
+        let a11y_timestamp = Duration::from_nanos(1000);
+        let permission_timestamp = A11Y_EVENT_WINDOW + Duration::from_secs(1);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(move |_| Ok(TEST_UID));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(TEST_PACKAGE_NAME, TEST_PERMISSION_NAME, permission_timestamp),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 1);
+        let atom = handler.writer.written[0].clone();
+
+        let expected = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(TEST_PERMISSION_NAME.to_string())),
+                Field::new(Value::Int64(permission_timestamp.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![])),
+                Field::new(Value::Int64Vec(vec![])),
+            ],
+        };
+
+        assert_eq!(atom, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_a11y_events_are_recorded() -> Result<()> {
+        let a11y_code1 = 456;
+        let a11y_code2 = 789;
+        let a11y_timestamp1 = Duration::from_millis(10);
+        let a11y_timestamp2 = Duration::from_millis(15);
+        let permission_timestamp = Duration::from_millis(20);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(move |_| Ok(TEST_UID));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(&task, &create_a11y_event(TEST_UID, a11y_code1, a11y_timestamp1))?;
+        handler.on_item(&task, &create_a11y_event(TEST_UID, a11y_code2, a11y_timestamp2))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(TEST_PACKAGE_NAME, TEST_PERMISSION_NAME, permission_timestamp),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 1);
+        let atom = handler.writer.written[0].clone();
+
+        let expected = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(TEST_PERMISSION_NAME.to_string())),
+                Field::new(Value::Int64(permission_timestamp.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![a11y_code2, a11y_code1])),
+                Field::new(Value::Int64Vec(vec![
+                    a11y_timestamp2.as_millis().try_into()?,
+                    a11y_timestamp1.as_millis().try_into()?,
+                ])),
+            ],
+        };
+
+        assert_eq!(atom, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_permission_grants() -> Result<()> {
+        let package_name_a = "pkg.name.a";
+        let permission_name_a = "android.permission.A";
+        let package_name_b = "pkg.name.b";
+        let permission_name_b = "android.permission.B";
+        let a11y_code1 = 456;
+        let a11y_code2 = 789;
+        let a11y_timestamp1 = Duration::from_millis(10);
+        let permission_timestamp_a = Duration::from_millis(20);
+        let a11y_timestamp2 = Duration::from_millis(30);
+        let permission_timestamp_b = Duration::from_millis(40);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(package_name_a))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(package_name_b))
+            .returning(|_| Ok(true));
+        mock_bridge.expect_getUidForPackage().returning(move |pkg| {
+            if pkg == package_name_a || pkg == package_name_b {
+                Ok(TEST_UID)
+            } else {
+                panic!("getUidForPackage called with unexpected package name: {}", pkg);
+            }
+        });
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(
+            &task,
+            &create_permission_event(package_name_a, permission_name_a, permission_timestamp_a),
+        )?;
+        handler.on_item(&task, &create_a11y_event(TEST_UID, a11y_code1, a11y_timestamp1))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(package_name_b, permission_name_b, permission_timestamp_b),
+        )?;
+        handler.on_item(&task, &create_a11y_event(TEST_UID, a11y_code2, a11y_timestamp2))?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 2);
+
+        let atom_b = handler.writer.written[0].clone();
+        let expected_b = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(permission_name_b.to_string())),
+                Field::new(Value::Int64(permission_timestamp_b.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![a11y_code2])),
+                Field::new(Value::Int64Vec(vec![a11y_timestamp2.as_millis().try_into()?])),
+            ],
+        };
+        assert_eq!(atom_b, expected_b);
+
+        let atom_a = handler.writer.written[1].clone();
+        let expected_a = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(permission_name_a.to_string())),
+                Field::new(Value::Int64(permission_timestamp_a.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![a11y_code1])),
+                Field::new(Value::Int64Vec(vec![a11y_timestamp1.as_millis().try_into()?])),
+            ],
+        };
+        assert_eq!(atom_a, expected_a);
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_a11y_events() -> Result<()> {
+        let permission_timestamp = Duration::from_millis(20);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(TEST_PACKAGE_NAME))
+            .returning(move |_| Ok(TEST_UID));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+        handler.on_item(
+            &task,
+            &create_permission_event(TEST_PACKAGE_NAME, TEST_PERMISSION_NAME, permission_timestamp),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 1);
+        let atom = handler.writer.written[0].clone();
+
+        let expected = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(TEST_UID), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(TEST_PERMISSION_NAME.to_string())),
+                Field::new(Value::Int64(permission_timestamp.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![])),
+                Field::new(Value::Int64Vec(vec![])),
+            ],
+        };
+
+        assert_eq!(atom, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn no_permission_grants() -> Result<()> {
+        let a11y_timestamp = Duration::from_millis(10);
+
+        let (mut handler, task) = setup_handler_and_task(MockIUprobeStatsBridgeService::new());
+        handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_variant_is_an_error() -> Result<()> {
+        let (mut handler, task) = setup_handler_and_task(MockIUprobeStatsBridgeService::new());
+        let result = handler.on_item(
+            &task,
+            &AccessibilityEvent {
+                variant: 99,
+                uid: 0,
+                code: 0,
+                timestamp_ns: 0,
+                package_name: [0; 128],
+                permission_name: [0; 128],
+            },
+        );
+
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_uids() -> Result<()> {
+        let package_name_a = "pkg.name.a";
+        let permission_name_a = "android.permission.A";
+        let uid_a = 123;
+        let a11y_code_a = 456;
+        let a11y_timestamp_a = Duration::from_millis(10);
+        let permission_timestamp_a = Duration::from_millis(20);
+
+        let package_name_b = "pkg.name.b";
+        let permission_name_b = "android.permission.B";
+        let uid_b = 789;
+        let a11y_code_b = 101;
+        let a11y_timestamp_b = Duration::from_millis(30);
+        let permission_timestamp_b = Duration::from_millis(40);
+
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(package_name_a))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(package_name_a))
+            .returning(move |_| Ok(uid_a));
+        mock_bridge
+            .expect_packageHasEnabledAccessibilityService()
+            .with(eq(package_name_b))
+            .returning(|_| Ok(true));
+        mock_bridge
+            .expect_getUidForPackage()
+            .with(eq(package_name_b))
+            .returning(move |_| Ok(uid_b));
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
+
+        // Events for UID A
+        handler.on_item(&task, &create_a11y_event(uid_a, a11y_code_a, a11y_timestamp_a))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(package_name_a, permission_name_a, permission_timestamp_a),
+        )?;
+
+        // Events for UID B
+        handler.on_item(&task, &create_a11y_event(uid_b, a11y_code_b, a11y_timestamp_b))?;
+        handler.on_item(
+            &task,
+            &create_permission_event(package_name_b, permission_name_b, permission_timestamp_b),
+        )?;
+
+        handler.on_finished()?;
+
+        assert_eq!(handler.writer.written.len(), 2);
+
+        handler.writer.written.sort_by_key(|a| {
+            if let Value::Int32(uid) = a.fields[0].value {
+                uid
+            } else {
+                0
+            }
+        });
+
+        let atom_a = handler.writer.written[0].clone();
+        let expected_a = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(uid_a), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(permission_name_a.to_string())),
+                Field::new(Value::Int64(permission_timestamp_a.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![a11y_code_a])),
+                Field::new(Value::Int64Vec(vec![a11y_timestamp_a.as_millis().try_into()?])),
+            ],
+        };
+        assert_eq!(atom_a, expected_a);
+
+        let atom_b = handler.writer.written[1].clone();
+        let expected_b = UnstructuredAtom {
+            atom_id: ATOM_ID_ACCESSIBILITY_RUNTIME_PERMISSION_GRANT,
+            fields: vec![
+                Field::new_with_annotation(Value::Int32(uid_b), FieldAnnotation::IsUid(true)),
+                Field::new(Value::String(permission_name_b.to_string())),
+                Field::new(Value::Int64(permission_timestamp_b.as_millis().try_into()?)),
+                Field::new(Value::Int32Vec(vec![a11y_code_b])),
+                Field::new(Value::Int64Vec(vec![a11y_timestamp_b.as_millis().try_into()?])),
+            ],
+        };
+        assert_eq!(atom_b, expected_b);
+
+        Ok(())
     }
 }

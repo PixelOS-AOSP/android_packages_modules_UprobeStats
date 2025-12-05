@@ -10,25 +10,56 @@ pub trait UprobeStatsBridgeService {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
-    use binder::BinderFeatures;
-    use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::IUprobeStatsBridgeService::{
-        BnUprobeStatsBridgeService,
-        MockIUprobeStatsBridgeService
+    use binder::{BinderFeatures, Interface};
+    use std::sync::{Arc, Mutex};
+    use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::{
+        Event::Event,
+        IUprobeStatsBridgeService::{
+            BnUprobeStatsBridgeService, IUprobeStatsBridgeService, MockIUprobeStatsBridgeService,
+        },
     };
 
-    #[allow(unused)]
+    #[derive(Clone, Debug)]
     pub(crate) struct TestUprobeStatsBridgeService {
-        pub(crate) mock: Option<MockIUprobeStatsBridgeService>,
+        pub(crate) mock: Arc<Mutex<MockIUprobeStatsBridgeService>>,
+    }
+
+    impl Interface for TestUprobeStatsBridgeService {}
+
+    impl IUprobeStatsBridgeService for TestUprobeStatsBridgeService {
+        fn getUidForPackage(&self, name: &str) -> binder::Result<i32> {
+            self.mock.lock().unwrap().getUidForPackage(name)
+        }
+        fn packageHasEnabledAccessibilityService(&self, name: &str) -> binder::Result<bool> {
+            self.mock.lock().unwrap().packageHasEnabledAccessibilityService(name)
+        }
+        fn isLauncherActivity(
+            &self,
+            pkg: &str,
+            activity: &str,
+            is_relaunch: bool,
+        ) -> binder::Result<bool> {
+            self.mock.lock().unwrap().isLauncherActivity(pkg, activity, is_relaunch)
+        }
+        fn enqueueEvent(&self, event: &Event, is_long: bool) -> binder::Result<()> {
+            self.mock.lock().unwrap().enqueueEvent(event, is_long)
+        }
+        fn enableTestMode(&self, pkg: &str, activity_class_name: &str) -> binder::Result<bool> {
+            self.mock.lock().unwrap().enableTestMode(pkg, activity_class_name)
+        }
+        fn disableTestMode(&self) -> binder::Result<bool> {
+            self.mock.lock().unwrap().disableTestMode()
+        }
+        fn waitQueueFlushed(&self) -> binder::Result<bool> {
+            self.mock.lock().unwrap().waitQueueFlushed()
+        }
     }
 
     impl UprobeStatsBridgeService for TestUprobeStatsBridgeService {
         fn get(&mut self) -> Result<Strong<dyn IUprobeStatsBridgeService>> {
-            Ok(BnUprobeStatsBridgeService::new_binder(
-                self.mock.take().expect("mock not set"),
-                BinderFeatures::default(),
-            ))
+            Ok(BnUprobeStatsBridgeService::new_binder(self.clone(), BinderFeatures::default()))
         }
     }
 }
