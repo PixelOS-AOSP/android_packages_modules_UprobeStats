@@ -1,5 +1,4 @@
 use crate::bridge_service::UPROBESTATS_BRIDGE_SERVICE;
-use crate::is_user_build;
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
 use statslog_uprobestats::{
@@ -8,16 +7,21 @@ use statslog_uprobestats::{
 };
 use std::ffi::c_long;
 use uprobestats_bpf_bindgen::{BindServiceLocked, ComponentEnabledSetting};
-use uprobestats_core::{bpf_handler::Handler, config_resolver::ResolvedTask, string::bytes_as_str};
+use uprobestats_core::{
+    bpf_handler::Handler, config_resolver::ResolvedTask, device_properties::DeviceProperties,
+    string::bytes_as_str,
+};
 
 const COMPONENT_ENABLED_STATE_DISABLED: i32 = 2; // PackageManager#COMPONENT_ENABLED_STATE_DISABLED (all values greater than or equal to are disabled states)
 
 #[derive(Default)]
-pub struct ComponentEnabledSettingHandler {}
+pub struct ComponentEnabledSettingHandler<D> {
+    device_properties: D,
+}
 
 // SAFETY: `ComponentEnabledSetting` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl Handler for ComponentEnabledSettingHandler {
+unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_ComponentEnabledSetting_output_buf";
     type T = ComponentEnabledSetting;
@@ -35,7 +39,7 @@ unsafe impl Handler for ComponentEnabledSettingHandler {
         if new_state < COMPONENT_ENABLED_STATE_DISABLED {
             return Ok(());
         }
-        if !is_user_build() {
+        if !self.device_properties.is_user_build() {
             set_component_enabled_setting_reported::stats_write(
                 package_name,
                 class_name,
@@ -66,11 +70,13 @@ unsafe impl Handler for ComponentEnabledSettingHandler {
 const BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS: c_long = 0x00100000; // Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS
 
 #[derive(Default)]
-pub struct BindServiceLockedHandler {}
+pub struct BindServiceLockedHandler<D> {
+    device_properties: D,
+}
 
 // SAFETY: `BindServiceLocked` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl Handler for BindServiceLockedHandler {
+unsafe impl<D: DeviceProperties> Handler for BindServiceLockedHandler<D> {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_BindServiceLocked_output_buf";
     type T = BindServiceLocked;
@@ -86,7 +92,7 @@ unsafe impl Handler for BindServiceLockedHandler {
             "BindServiceLocked: intent_package={intent_package:?}, intent_action={intent_action:?}, intent_component_name_package={intent_component_name_package:?}, intent_component_name_class={intent_component_name_class:?} flags={flags:?}, calling_package={calling_package:?}, has_bal_flag={has_bal_flag}"
         );
         if has_bal_flag {
-            if !is_user_build() {
+            if !self.device_properties.is_user_build() {
                 bind_service_locked_with_bal_flags_reported::stats_write(
                     intent_package,
                     flags as _,

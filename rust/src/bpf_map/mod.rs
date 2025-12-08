@@ -9,6 +9,8 @@ use crate::bpf_map::process_management::{
 };
 #[cfg(feature = "bridge-service")]
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
+#[cfg(feature = "bridge-service")]
+use crate::device_properties::DefaultDeviceProperties;
 use anyhow::{bail, Result};
 use log::{debug, trace};
 use statssocket::AStatsEventWriter;
@@ -196,8 +198,8 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
             >(&mut map);
         }
         if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
-            register_handler::<BindServiceLockedHandler>(&mut map);
-            register_handler::<ComponentEnabledSettingHandler>(&mut map);
+            register_handler::<BindServiceLockedHandler<DefaultDeviceProperties>>(&mut map);
+            register_handler::<ComponentEnabledSettingHandler<DefaultDeviceProperties>>(&mut map);
         }
     }
     #[cfg(feature = "art-test")]

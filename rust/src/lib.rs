@@ -2,6 +2,8 @@
 pub mod bpf_map;
 #[cfg(feature = "bridge-service")]
 mod bridge_service;
+#[cfg(feature = "bridge-service")]
+mod device_properties;
 mod process;
 mod resolver_impl;
 pub mod task;
