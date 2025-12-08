@@ -1,8 +1,8 @@
 //! Deals with fetching data BPF ring buffers ("maps").
+#[cfg(feature = "bridge-service")]
+use crate::atom::CodegenAtomWriter;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
-#[cfg(feature = "bridge-service")]
-use crate::bpf_map::disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler};
 use crate::bpf_map::generic_instrumentation::{CallResultHandler, CallTimestampHandler};
 use crate::bpf_map::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
@@ -20,10 +20,13 @@ use uprobestats_bpf::{
     bpf_map_open_exclusive_rw, bpf_map_update_elem, poll_ring_buf, UpdateMapElemFlags,
 };
 use uprobestats_bpf_bindgen::BpfMapHandle;
-#[cfg(feature = "bridge-service")]
-use uprobestats_core::bpf_handler::accessibility::AccessibilityHandler;
 #[cfg(feature = "art-test")]
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
+#[cfg(feature = "bridge-service")]
+use uprobestats_core::bpf_handler::{
+    accessibility::AccessibilityHandler,
+    disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler},
+};
 use uprobestats_core::{
     bpf_handler::{Handler, HandlerRegistry},
     config_resolver::ResolvedTask,
@@ -33,8 +36,6 @@ use uprobestats_core::{
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
-#[cfg(feature = "bridge-service")]
-mod disruptive_app;
 mod generic_instrumentation;
 mod process_management;
 
@@ -176,6 +177,20 @@ fn register_handler<H: Handler + Default>(handler_registry: &mut HandlerRegistry
     handler_registry.insert(H::MAP_PATH, poll_loop_generic::<H>);
 }
 
+#[cfg(feature = "bridge-service")]
+type BindServiceLockedHandlerImpl = BindServiceLockedHandler<
+    CodegenAtomWriter,
+    DefaultUprobeStatsBridgeService,
+    DefaultDeviceProperties,
+>;
+
+#[cfg(feature = "bridge-service")]
+type ComponentEnabledSettingHandlerImpl = ComponentEnabledSettingHandler<
+    CodegenAtomWriter,
+    DefaultUprobeStatsBridgeService,
+    DefaultDeviceProperties,
+>;
+
 static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     let mut map = HashMap::new();
     if uprobestats_mainline_flags_rust::enable_bitmap_snapshot() {
@@ -198,8 +213,8 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
             >(&mut map);
         }
         if uprobestats_mainline_flags_rust::uprobestats_monitor_disruptive_app_activities() {
-            register_handler::<BindServiceLockedHandler<DefaultDeviceProperties>>(&mut map);
-            register_handler::<ComponentEnabledSettingHandler<DefaultDeviceProperties>>(&mut map);
+            register_handler::<BindServiceLockedHandlerImpl>(&mut map);
+            register_handler::<ComponentEnabledSettingHandlerImpl>(&mut map);
         }
     }
     #[cfg(feature = "art-test")]

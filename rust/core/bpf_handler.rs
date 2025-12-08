@@ -9,6 +9,9 @@ pub mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;
+#[cfg(feature = "bridge-service")]
+/// Disruptive app handlers
+pub mod disruptive_app;
 
 /// Interface for reading items out of a BPF ring buffer.
 /// # Safety

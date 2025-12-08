@@ -1,27 +1,34 @@
-use crate::bridge_service::UPROBESTATS_BRIDGE_SERVICE;
-use anyhow::{anyhow, Result};
-use log::{debug, trace};
-use statslog_uprobestats::{
-    bind_service_locked_with_bal_flags_reported, bind_service_locked_with_bal_flags_uids_reported,
-    disabled_launcher_activity_uids_reported, set_component_enabled_setting_reported,
-};
-use std::ffi::c_long;
-use uprobestats_bpf_bindgen::{BindServiceLocked, ComponentEnabledSetting};
-use uprobestats_core::{
-    bpf_handler::Handler, config_resolver::ResolvedTask, device_properties::DeviceProperties,
+use crate::{
+    atom::{AtomWriter, CodegenAtom},
+    bpf_handler::Handler,
+    bridge_service::UprobeStatsBridgeService,
+    config_resolver::ResolvedTask,
+    device_properties::DeviceProperties,
     string::bytes_as_str,
 };
+use anyhow::Result;
+use log::{debug, trace};
+use std::ffi::c_long;
+use uprobestats_bpf_structs::{BindServiceLocked, ComponentEnabledSetting};
 
 const COMPONENT_ENABLED_STATE_DISABLED: i32 = 2; // PackageManager#COMPONENT_ENABLED_STATE_DISABLED (all values greater than or equal to are disabled states)
 
+/// Handler for component disabling events.
 #[derive(Default)]
-pub struct ComponentEnabledSettingHandler<D> {
+pub struct ComponentEnabledSettingHandler<A, B, D> {
+    writer: A,
+    bridge_service: B,
     device_properties: D,
 }
 
 // SAFETY: `ComponentEnabledSetting` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
+unsafe impl<A, B, D> Handler for ComponentEnabledSettingHandler<A, B, D>
+where
+    A: AtomWriter<CodegenAtom>,
+    B: UprobeStatsBridgeService,
+    D: DeviceProperties,
+{
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_ComponentEnabledSetting_output_buf";
     type T = ComponentEnabledSetting;
@@ -31,7 +38,7 @@ unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
         let new_state = data.new_state;
         let calling_package_name = bytes_as_str(&data.calling_package_name)?;
 
-        let service = UPROBESTATS_BRIDGE_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
+        let service = self.bridge_service.get()?;
         let is_launcher_activity = service.isLauncherActivity(package_name, class_name, true)?;
 
         debug!("ComponentEnabledSetting: package_name={package_name:?}, class_name={class_name:?}, new_state={new_state:?}, calling_package_name={calling_package_name:?}, is_launcher_activity={is_launcher_activity}");
@@ -40,13 +47,13 @@ unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
             return Ok(());
         }
         if !self.device_properties.is_user_build() {
-            set_component_enabled_setting_reported::stats_write(
-                package_name,
-                class_name,
+            self.writer.write(CodegenAtom::SetComponentEnabledSettingReported {
+                package_name: package_name.to_string(),
+                class_name: class_name.to_string(),
                 new_state,
-                calling_package_name,
+                calling_package_name: calling_package_name.to_string(),
                 is_launcher_activity,
-            )?;
+            })?;
         }
         if is_launcher_activity {
             let calling_uid = if calling_package_name == "shell" {
@@ -58,10 +65,10 @@ unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
             trace!("uid for package: {calling_package_name} = {calling_uid}");
             let disabled_activity_uid = service.getUidForPackage(package_name)?;
             trace!("uid for package: {package_name} = {disabled_activity_uid}");
-            disabled_launcher_activity_uids_reported::stats_write(
+            self.writer.write(CodegenAtom::DisabledLauncherActivityUidsReported {
                 calling_uid,
                 disabled_activity_uid,
-            )?;
+            })?;
         }
         Ok(())
     }
@@ -69,14 +76,22 @@ unsafe impl<D: DeviceProperties> Handler for ComponentEnabledSettingHandler<D> {
 
 const BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS: c_long = 0x00100000; // Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS
 
+/// Handler for bind service with BAL events.
 #[derive(Default)]
-pub struct BindServiceLockedHandler<D> {
+pub struct BindServiceLockedHandler<A, B, D> {
+    writer: A,
+    bridge_service: B,
     device_properties: D,
 }
 
 // SAFETY: `BindServiceLocked` is a struct defined in the given `MAP_PATH`, and is guaranteed to match the
 // layout of the corresponding C struct.
-unsafe impl<D: DeviceProperties> Handler for BindServiceLockedHandler<D> {
+unsafe impl<A, B, D> Handler for BindServiceLockedHandler<A, B, D>
+where
+    A: AtomWriter<CodegenAtom>,
+    B: UprobeStatsBridgeService,
+    D: DeviceProperties,
+{
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_BindServiceLocked_output_buf";
     type T = BindServiceLocked;
@@ -93,17 +108,17 @@ unsafe impl<D: DeviceProperties> Handler for BindServiceLockedHandler<D> {
         );
         if has_bal_flag {
             if !self.device_properties.is_user_build() {
-                bind_service_locked_with_bal_flags_reported::stats_write(
-                    intent_package,
-                    flags as _,
-                    calling_package,
-                    intent_action,
-                    intent_component_name_package,
-                    intent_component_name_class,
-                )?;
+                self.writer.write(CodegenAtom::BindServiceLockedWithBalFlagsReported {
+                    intent_package: intent_package.to_string(),
+                    flags: flags as _,
+                    calling_package: calling_package.to_string(),
+                    intent_action: intent_action.to_string(),
+                    intent_component_name_package: intent_component_name_package.to_string(),
+                    intent_component_name_class: intent_component_name_class.to_string(),
+                })?;
             }
 
-            let service = UPROBESTATS_BRIDGE_SERVICE.as_ref().map_err(|e| anyhow!(e))?;
+            let service = self.bridge_service.get()?;
             let binder_uid = service.getUidForPackage(calling_package)?;
             let bindee_uid = if intent_package.is_empty() {
                 service.getUidForPackage(intent_component_name_package)?
@@ -111,7 +126,10 @@ unsafe impl<D: DeviceProperties> Handler for BindServiceLockedHandler<D> {
                 service.getUidForPackage(intent_package)?
             };
 
-            bind_service_locked_with_bal_flags_uids_reported::stats_write(binder_uid, bindee_uid)?;
+            self.writer.write(CodegenAtom::BindServiceLockedWithBalFlagsUidsReported {
+                binder_uid,
+                bindee_uid,
+            })?;
         }
         Ok(())
     }

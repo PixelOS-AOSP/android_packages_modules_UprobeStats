@@ -1,6 +1,5 @@
 //! Abstraction for dealing with statsd atoms.
 use anyhow::Result;
-use std::time::Duration;
 
 /// Trait for something that can write atoms. Implemented by statsd libraries, abstracted for tests.
 pub trait AtomWriter<A> {
@@ -58,28 +57,33 @@ pub enum FieldAnnotation {
     IsUid(bool),
 }
 
-/// Mirrors the same atom in uprobestats_extesion_atoms.proto
-pub struct AccessibilityRuntimePermissionGrantReported {
-    /// See proto for documentation.
-    pub uid: i32,
-    /// See proto for documentation.
-    pub timestamp: Duration,
-    /// See proto for documentation.
-    pub permission_name: String,
-    /// See proto for documentation.
-    pub preceding_a11y_calls: Vec<(i32, Duration)>,
-}
-
-impl AccessibilityRuntimePermissionGrantReported {
-    /// Constructor
-    pub fn new(uid: i32, timestamp: &Duration, permission_name: &str) -> Self {
-        Self {
-            uid,
-            timestamp: *timestamp,
-            permission_name: permission_name.to_string(),
-            preceding_a11y_calls: vec![],
-        }
-    }
+/// Mirrors the same atoms in uprobestats_extesion_atoms.proto
+/// Note: these are the atoms that are supported by statsd codegen.
+#[allow(missing_docs)]
+pub enum CodegenAtom {
+    SetComponentEnabledSettingReported {
+        package_name: String,
+        class_name: String,
+        new_state: i32,
+        calling_package_name: String,
+        is_launcher_activity: bool,
+    },
+    DisabledLauncherActivityUidsReported {
+        calling_uid: i32,
+        disabled_activity_uid: i32,
+    },
+    BindServiceLockedWithBalFlagsReported {
+        intent_package: String,
+        flags: i64,
+        calling_package: String,
+        intent_action: String,
+        intent_component_name_package: String,
+        intent_component_name_class: String,
+    },
+    BindServiceLockedWithBalFlagsUidsReported {
+        binder_uid: i32,
+        bindee_uid: i32,
+    },
 }
 
 #[cfg(test)]
