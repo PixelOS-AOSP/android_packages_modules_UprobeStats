@@ -3,6 +3,10 @@ use crate::config_resolver::ResolvedTask;
 use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 
+/// A module only for testing JIT integration.
+#[cfg(feature = "art-test")]
+pub mod art_test;
+
 /// Interface for reading items out of a BPF ring buffer.
 /// # Safety
 /// There *must* exist a BPF ring buffer at the path represented by `MAP_PATH`

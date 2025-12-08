@@ -16,6 +16,7 @@
 package com.android.uprobestats.cts;
 
 import static android.Manifest.permission.DYNAMIC_INSTRUMENTATION;
+import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
@@ -32,6 +33,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.UserHandle;
+import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.service.uprobestats.DynamicInstrumentationEvent;
@@ -96,7 +99,8 @@ public class DynamicInstrumentationEventServiceTest {
         bindIntent.setComponent(TEST_SERVICE_COMPONENT_NAME);
         futureConnection = new FutureConnection<>(ITestService.Stub::asInterface);
         boolean success =
-                mContext.bindService(bindIntent, futureConnection, Context.BIND_AUTO_CREATE);
+                mContext.bindServiceAsUser(
+                        bindIntent, futureConnection, Context.BIND_AUTO_CREATE, UserHandle.SYSTEM);
         assertTrue("Failed to setup " + TEST_SERVICE_COMPONENT_NAME, success);
         return futureConnection.get(TEST_SERVICE_SETUP_TIMEOUT_MS);
     }
@@ -113,6 +117,7 @@ public class DynamicInstrumentationEventServiceTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testLaunchConsumer() throws Exception {
         mContext.startActivity(
                 new Intent()
@@ -121,7 +126,8 @@ public class DynamicInstrumentationEventServiceTest {
     }
 
     @Test
-    @EnsureHasPermission(DYNAMIC_INSTRUMENTATION)
+    @EnsureHasPermission({DYNAMIC_INSTRUMENTATION, INTERACT_ACROSS_USERS_FULL})
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testReceiveEventWithFlush() throws Exception {
         DynamicInstrumentationEventSender sender =
                 mContext.getSystemService(DynamicInstrumentationEventSender.class);
@@ -167,7 +173,8 @@ public class DynamicInstrumentationEventServiceTest {
     }
 
     @Test
-    @EnsureHasPermission(DYNAMIC_INSTRUMENTATION)
+    @EnsureHasPermission({DYNAMIC_INSTRUMENTATION, INTERACT_ACROSS_USERS_FULL})
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
     public void testReceiveEventWithoutFlush() throws Exception {
         DynamicInstrumentationEventSender sender =
                 mContext.getSystemService(DynamicInstrumentationEventSender.class);

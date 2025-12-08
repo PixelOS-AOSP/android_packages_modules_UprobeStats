@@ -24,6 +24,33 @@ rust_bindgen {
     visibility: ["//packages/modules/UprobeStats:__subpackages__"],
 }
 
+rust_bindgen {
+    name: "libuprobestats_bpf_structs",
+    crate_name: "uprobestats_bpf_structs",
+    defaults: ["uprobestats_apex_defaults"],
+    wrapper_src: "bpf_structs_wrapper.h",
+    source_stem: "bindings",
+    shared_libs: ["libuprobestats_bpf_structs_cc"],
+    host_supported: true,
+    visibility: ["//packages/modules/UprobeStats:__subpackages__"],
+}
+
+cc_library_shared {
+    name: "libuprobestats_bpf_structs_cc",
+    header_libs: [
+        "uprobestats_bpf_headers",
+    ],
+    export_header_lib_headers: [
+        "uprobestats_bpf_headers",
+    ],
+    host_supported: true,
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.uprobestats",
+    ],
+    min_sdk_version: "36",
+}
+
 cc_library_shared {
     name: "libuprobestats_bpf_cc",
     srcs: ["bpf.cpp"],

@@ -30,7 +30,7 @@ unsafe impl Handler for BinderTransactionHandler {
         // TODO(b/408256309) call ProtectionLogEvent client when available.
         let mut event = AStatsEvent::new(915); // test_uprobestats_atom_reported
         event.write_int32(item.calling_uid);
-        event.write();
+        event.write()?;
         debug!("successfully write test_uprobestats_atom_reported");
         Ok(())
     }
