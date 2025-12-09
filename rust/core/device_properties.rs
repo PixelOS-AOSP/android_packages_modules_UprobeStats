@@ -9,9 +9,8 @@ pub trait DeviceProperties {
 pub mod test {
     use super::*;
 
-    #[allow(dead_code)]
-    struct TestDeviceProperties {
-        is_user_build: bool,
+    pub(crate) struct TestDeviceProperties {
+        pub is_user_build: bool,
     }
 
     impl DeviceProperties for TestDeviceProperties {

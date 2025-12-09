@@ -60,6 +60,7 @@ pub enum FieldAnnotation {
 /// Mirrors the same atoms in uprobestats_extesion_atoms.proto
 /// Note: these are the atoms that are supported by statsd codegen.
 #[allow(missing_docs)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum CodegenAtom {
     SetComponentEnabledSettingReported {
         package_name: String,
@@ -87,6 +88,7 @@ pub enum CodegenAtom {
 }
 
 #[cfg(test)]
+#[cfg(feature = "bridge-service")]
 pub mod test {
     use super::*;
     pub(crate) struct TestAtomWriter<A> {
