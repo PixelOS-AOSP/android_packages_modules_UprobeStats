@@ -9,6 +9,7 @@ pub trait AtomWriter<A> {
 
 /// An unstructured atom is one that doesn't have a compile-time defined structure, and is
 /// described by an atom id and a sequence of values.
+#[derive(Debug, PartialEq, Clone)]
 pub struct UnstructuredAtom {
     /// The atom id.
     pub atom_id: u32,
@@ -17,6 +18,7 @@ pub struct UnstructuredAtom {
 }
 
 /// A field in an atom.
+#[derive(Debug, PartialEq, Clone)]
 pub struct Field {
     /// The actual data.
     pub value: Value,
@@ -38,6 +40,7 @@ impl Field {
 
 /// A value in a field.
 #[allow(missing_docs)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     Bool(bool),
     Int32(i32),
@@ -48,17 +51,54 @@ pub enum Value {
 }
 
 /// An annotation on a field.
+#[derive(Debug, PartialEq, Clone)]
 pub enum FieldAnnotation {
     /// Whether the field is a uid.
     IsUid(bool),
 }
 
+/// Mirrors the same atoms in uprobestats_extesion_atoms.proto
+/// Note: these are the atoms that are supported by statsd codegen.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, Clone)]
+pub enum CodegenAtom {
+    SetComponentEnabledSettingReported {
+        package_name: String,
+        class_name: String,
+        new_state: i32,
+        calling_package_name: String,
+        is_launcher_activity: bool,
+    },
+    DisabledLauncherActivityUidsReported {
+        calling_uid: i32,
+        disabled_activity_uid: i32,
+    },
+    BindServiceLockedWithBalFlagsReported {
+        intent_package: String,
+        flags: i64,
+        calling_package: String,
+        intent_action: String,
+        intent_component_name_package: String,
+        intent_component_name_class: String,
+    },
+    BindServiceLockedWithBalFlagsUidsReported {
+        binder_uid: i32,
+        bindee_uid: i32,
+    },
+}
+
 #[cfg(test)]
+#[cfg(feature = "bridge-service")]
 pub mod test {
     use super::*;
-    #[allow(unused)]
     pub(crate) struct TestAtomWriter<A> {
         pub(crate) written: Vec<A>,
+    }
+
+    impl<A> Default for TestAtomWriter<A> {
+        fn default() -> Self {
+            Self { written: vec![] }
+        }
     }
 
     impl<A> AtomWriter<A> for TestAtomWriter<A> {

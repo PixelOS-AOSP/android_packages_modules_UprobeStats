@@ -1,15 +1,30 @@
 {
     "presubmit": [
         {
+            "name": "CtsUprobeStatsTest"
+        },
+        {
             "name": "uprobestats-test"
         },
         {
             "name": "uprobestats-art-test"
+        },
+        {
+            "name": "uprobestats-core-test"
         }
     ],
     "uprobestats-mainline-presubmit": [
         {
+            "name": "CtsUprobeStatsTest"
+        },
+        {
             "name": "uprobestats-test"
+        },
+        {
+            "name": "uprobestats-art-test"
+        },
+        {
+            "name": "uprobestats-core-test"
         },
         {
             "name": "CtsStatsdAtomHostTestCases"

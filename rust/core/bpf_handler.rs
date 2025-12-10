@@ -3,9 +3,15 @@ use crate::config_resolver::ResolvedTask;
 use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 
+#[cfg(feature = "bridge-service")]
+/// a11y handler
+pub mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;
+#[cfg(feature = "bridge-service")]
+/// Disruptive app handlers
+pub mod disruptive_app;
 
 /// Interface for reading items out of a BPF ring buffer.
 /// # Safety
