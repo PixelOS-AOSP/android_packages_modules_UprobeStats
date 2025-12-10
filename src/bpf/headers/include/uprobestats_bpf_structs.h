@@ -16,6 +16,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <sys/cdefs.h>
 #include <sys/types.h>
 
 #define MAX_STRING_LENGTH 128
