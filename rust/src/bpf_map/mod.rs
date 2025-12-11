@@ -13,6 +13,7 @@ use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use crate::device_properties::DefaultDeviceProperties;
 use anyhow::{bail, Result};
 use log::{debug, trace};
+#[cfg(any(feature = "art-test", feature = "bridge-service"))]
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
