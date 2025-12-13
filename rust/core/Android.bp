@@ -26,5 +26,8 @@ rust_test_host {
     name: "uprobestats-core-test",
     defaults: ["uprobestats_core_defaults"],
     rustlibs: ["libmockall"],
-    test_suites: ["general-tests"],
+    test_suites: [
+        "general-tests",
+        "mts-uprobestats",
+    ],
 }
