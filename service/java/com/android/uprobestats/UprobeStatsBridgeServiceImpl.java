@@ -49,9 +49,9 @@ import java.util.concurrent.TimeUnit;
  * @hide
  */
 public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeService.Stub {
+    private static final boolean DEBUG = false;
     private static final String TAG = "UprobeStatsBridgeService";
     private final Context mContext;
-    private volatile IUprobeStatsEventListener mEventListener;
     private final HandlerThread mHandlerThread;
     private final Handler mFlushHandler;
     private static final int EVENT_BUFFER_CAPACITY = 32;
@@ -64,59 +64,13 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
         super();
         mContext = context;
 
+        if (DEBUG) {
+            Slog.d(TAG, "UprobeStatsBridgeServiceImpl constructor");
+        }
+
         mHandlerThread = new HandlerThread(TAG);
         mHandlerThread.start();
         mFlushHandler = new Handler(mHandlerThread.getLooper());
-
-        bindConsumer(); // we are not waiting for the latch to open here. Events created before
-        // the binding finishes will simply be discarded as if no consumer was configured.
-    }
-
-    private CountDownLatch bindConsumer() {
-        CountDownLatch latch = new CountDownLatch(1);
-        DynamicInstrumentationManager dynamicInstrumentationManager =
-                mContext.getSystemService(DynamicInstrumentationManager.class);
-        ComponentName dynamicInstrumentationEventConsumer =
-                dynamicInstrumentationManager.getDynamicInstrumentationEventConsumer();
-
-        if (dynamicInstrumentationEventConsumer == null) {
-            Slog.w(
-                    TAG,
-                    "Dynamic instrumentation consumer service not configured. "
-                            + "Events will be dropped.");
-            latch.countDown();
-            return latch; // Do not attempt to bind
-        }
-
-        final long callerToken = Binder.clearCallingIdentity();
-        try {
-            mContext.bindServiceAsUser(
-                    new Intent().setComponent(dynamicInstrumentationEventConsumer),
-                    new ServiceConnection() {
-                        @Override
-                        public void onServiceConnected(ComponentName name, IBinder service) {
-                            mEventListener = IUprobeStatsEventListener.Stub.asInterface(service);
-                            latch.countDown();
-                        }
-
-                        @Override
-                        public void onServiceDisconnected(ComponentName name) {
-                            mEventListener = null;
-                            latch.countDown();
-                        }
-
-                        @Override
-                        public void onNullBinding(ComponentName name) {
-                            mEventListener = null;
-                            latch.countDown();
-                        }
-                    },
-                    Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
-                    UserHandle.SYSTEM);
-        } finally {
-            Binder.restoreCallingIdentity(callerToken);
-        }
-        return latch;
     }
 
     @Override
@@ -191,29 +145,87 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                         return;
                     }
                     try {
-                        mEventListener.onEvent(eventsToSend);
+                        bindConsumerAndSendEvents(eventsToSend);
                     } catch (RemoteException e) {
                         Slog.w(TAG, "Events may have been lost (" + eventsToSend.size() + ")", e);
                     }
                 }
             };
 
+    private void bindConsumerAndSendEvents(List<Event> events) throws RemoteException {
+        DynamicInstrumentationManager dynamicInstrumentationManager =
+                mContext.getSystemService(DynamicInstrumentationManager.class);
+        ComponentName dynamicInstrumentationEventConsumer =
+                dynamicInstrumentationManager.getDynamicInstrumentationEventConsumer();
+        if (dynamicInstrumentationEventConsumer == null) {
+            Slog.w(
+                    TAG,
+                    "Dynamic instrumentation consumer service not configured. "
+                            + "Events will be dropped.");
+            return;
+        }
+        if (DEBUG) {
+            Slog.d(TAG, "Dynamic instrumentation consumer service "
+                    + dynamicInstrumentationEventConsumer.flattenToShortString()
+                    + " configured.");
+        }
+
+        final long callerToken = Binder.clearCallingIdentity();
+        try {
+            boolean success =
+                    mContext.bindServiceAsUser(
+                            new Intent().setComponent(dynamicInstrumentationEventConsumer),
+                            new ServiceConnection() {
+                                @Override
+                                public void onServiceConnected(
+                                        ComponentName name, IBinder service) {
+                                    IUprobeStatsEventListener eventListener =
+                                            IUprobeStatsEventListener.Stub.asInterface(service);
+                                    try {
+                                        eventListener.onEvent(events);
+                                    } catch (RemoteException e) {
+                                        Slog.e(TAG, "Failed to send events", e);
+                                    }
+                                    mContext.unbindService(this);
+                                }
+
+                                @Override
+                                public void onServiceDisconnected(ComponentName name) {
+                                    Slog.d(TAG, "onServiceDisconnected");
+                                }
+
+                                @Override
+                                public void onNullBinding(ComponentName name) {
+                                    Slog.e(
+                                            TAG,
+                                            "null binding from dynamic instrumentation consumer"
+                                                + " service");
+                                }
+                            },
+                            Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
+                            UserHandle.SYSTEM);
+            if (!success) {
+                Slog.e(TAG, "Failed to bind to dynamic instrumentation consumer service");
+            }
+        } finally {
+            Binder.restoreCallingIdentity(callerToken);
+        }
+    }
+
     @Override
     @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
     public void enqueueEvent(Event event, boolean flush) {
         mContext.enforceCallingPermission(
                 DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
-        if (mEventListener != null) {
-            boolean bufferFull;
-            synchronized (mEventBuffer) {
-                mEventBuffer.add(event);
-                bufferFull = mEventBuffer.size() >= EVENT_BUFFER_CAPACITY;
-            }
-            if (flush || bufferFull) {
-                mFlushHandler.post(mFlushRunnable);
-            } else {
-                mFlushHandler.postDelayed(mFlushRunnable, flushTimeout);
-            }
+        boolean bufferFull;
+        synchronized (mEventBuffer) {
+            mEventBuffer.add(event);
+            bufferFull = mEventBuffer.size() >= EVENT_BUFFER_CAPACITY;
+        }
+        if (flush || bufferFull) {
+            mFlushHandler.post(mFlushRunnable);
+        } else {
+            mFlushHandler.postDelayed(mFlushRunnable, flushTimeout);
         }
     }
 
@@ -226,19 +238,8 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
         DynamicInstrumentationManager dynamicInstrumentationManager =
                 mContext.getSystemService(DynamicInstrumentationManager.class);
         dynamicInstrumentationManager.setDynamicInstrumentationEventConsumer(componentName);
-        try {
-            // bind and wait for the binding to complete - since this is only used in test mode
-            // consistency is more important than performance
-            bindConsumer().await(10, TimeUnit.SECONDS);
-            if (mEventListener != null) {
-                flushTimeout = TEST_FLUSH_TIMEOUT;
-                Slog.i(TAG, "TestMode enabled " + componentName.flattenToShortString());
-                return true;
-            }
-            return false;
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        flushTimeout = TEST_FLUSH_TIMEOUT;
+        return true;
     }
 
     @Override
@@ -246,22 +247,11 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     public boolean disableTestMode() {
         mContext.enforceCallingPermission(
                 DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
-        flushTimeout = FLUSH_TIMEOUT;
         DynamicInstrumentationManager dynamicInstrumentationManager =
                 mContext.getSystemService(DynamicInstrumentationManager.class);
         dynamicInstrumentationManager.setDynamicInstrumentationEventConsumer(null);
-        try {
-            // bind and wait for the binding to complete - since this is only used in test mode
-            // consistency is more important than performance
-            bindConsumer().await(10, TimeUnit.SECONDS);
-            if (mEventListener != null) {
-                Slog.i(TAG, "TestMode disabled");
-                return true;
-            }
-            return false;
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        flushTimeout = FLUSH_TIMEOUT;
+        return true;
     }
 
     @Override
