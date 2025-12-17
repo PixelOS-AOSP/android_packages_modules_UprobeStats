@@ -195,15 +195,17 @@ mod test {
             new_state: 0,
             calling_package_name: [0; 128],
         };
-        let package_name_bytes: &[i8] = FromBytes::ref_from_bytes(package_name.as_bytes()).unwrap();
+        let package_name_bytes: &[libc::c_char] =
+            FromBytes::ref_from_bytes(package_name.as_bytes()).unwrap();
         data.package_name[..package_name_bytes.len()].copy_from_slice(package_name_bytes);
 
-        let class_name_bytes: &[i8] = FromBytes::ref_from_bytes(class_name.as_bytes()).unwrap();
+        let class_name_bytes: &[libc::c_char] =
+            FromBytes::ref_from_bytes(class_name.as_bytes()).unwrap();
         data.class_name[..class_name_bytes.len()].copy_from_slice(class_name_bytes);
 
         data.new_state = new_state;
 
-        let calling_package_name_bytes: &[i8] =
+        let calling_package_name_bytes: &[libc::c_char] =
             FromBytes::ref_from_bytes(calling_package_name.as_bytes()).unwrap();
         data.calling_package_name[..calling_package_name_bytes.len()]
             .copy_from_slice(calling_package_name_bytes);
@@ -433,16 +435,16 @@ mod test {
             bind_flags: 0,
         };
 
-        let intent_package_bytes: &[i8] =
+        let intent_package_bytes: &[libc::c_char] =
             FromBytes::ref_from_bytes(intent_package.as_bytes()).unwrap();
         data.intent_package[..intent_package_bytes.len()].copy_from_slice(intent_package_bytes);
 
-        let intent_component_name_package_bytes: &[i8] =
+        let intent_component_name_package_bytes: &[libc::c_char] =
             FromBytes::ref_from_bytes(intent_component_name_package.as_bytes()).unwrap();
         data.intent_component_name_package[..intent_component_name_package_bytes.len()]
             .copy_from_slice(intent_component_name_package_bytes);
 
-        let calling_package_bytes: &[i8] =
+        let calling_package_bytes: &[libc::c_char] =
             FromBytes::ref_from_bytes(calling_package.as_bytes()).unwrap();
         data.calling_package[..calling_package_bytes.len()].copy_from_slice(calling_package_bytes);
 
