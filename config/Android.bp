@@ -1,0 +1,26 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+    default_team: "trendy_team_system_performance",
+}
+
+java_library_host {
+    name: "uprobestats-protos",
+    srcs: [
+        "config.proto",
+    ],
+    proto: {
+        include_dirs: [
+            "external/protobuf/src",
+        ],
+        type: "full",
+    },
+}
+
+rust_protobuf {
+    name: "libuprobestats_proto",
+    crate_name: "uprobestats_proto",
+    defaults: ["uprobestats_apex_defaults"],
+    host_supported: true,
+    protos: ["config.proto"],
+    source_stem: "libuprobestats_proto",
+}

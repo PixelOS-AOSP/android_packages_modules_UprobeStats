@@ -5,14 +5,14 @@ package {
 bpf {
     name: "BitmapAllocation.o",
     srcs: ["BitmapAllocation.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
 bpf {
     name: "GenericInstrumentation.o",
     srcs: ["GenericInstrumentation.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
@@ -24,34 +24,34 @@ bpf {
         "-Wall",
         "-Werror",
     ],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
 bpf {
     name: "DisruptiveApp.o",
     srcs: ["DisruptiveApp.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
 bpf {
     name: "Binder.o",
     srcs: ["Binder.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
 bpf {
     name: "ArtTest.o",
     srcs: ["ArtTest.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
 
 bpf {
     name: "Accessibility.o",
     srcs: ["Accessibility.c"],
-    include_dirs: ["packages/modules/UprobeStats/src/bpf/headers/include"],
+    include_dirs: ["packages/modules/UprobeStats/bpf/headers/include"],
     sub_dir: "uprobestats",
 }
