@@ -294,11 +294,11 @@ mod test {
             permission_name: [0; 128],
         };
 
-        let pkg_name: &[i8] = FromBytes::ref_from_bytes(pkg_name.as_bytes())
+        let pkg_name: &[libc::c_char] = FromBytes::ref_from_bytes(pkg_name.as_bytes())
             .expect("Always valid to convert [u8] to [i8].");
         permission_event.package_name[..pkg_name.len()].copy_from_slice(pkg_name);
 
-        let perm_name: &[i8] = FromBytes::ref_from_bytes(perm_name.as_bytes())
+        let perm_name: &[libc::c_char] = FromBytes::ref_from_bytes(perm_name.as_bytes())
             .expect("Always valid to convert [u8] to [i8].");
         permission_event.permission_name[..perm_name.len()].copy_from_slice(perm_name);
 

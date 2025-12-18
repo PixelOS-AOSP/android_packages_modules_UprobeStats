@@ -13,6 +13,7 @@ rust_defaults {
         "libuprobestats_bpf_structs",
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
+        "liblibc",
     ],
 }
 
@@ -20,6 +21,9 @@ rust_library {
     name: "libuprobestats_core",
     crate_name: "uprobestats_core",
     defaults: ["uprobestats_core_defaults"],
+    rustlibs: [
+        "liblibc",
+    ],
 }
 
 rust_test_host {
