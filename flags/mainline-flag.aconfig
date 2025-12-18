@@ -12,6 +12,7 @@ flag {
    namespace: "responsible_apis"
    description: "Guards the UprobeStatsEventService API."
    bug: "412739902"
+   is_exported: true
 }
 
 flag {
