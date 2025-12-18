@@ -166,7 +166,7 @@ DEFINE_BPF_PROG("uprobe/create_scaled_bitmap", AID_UPROBESTATS, AID_UPROBESTATS,
   load(&output->width, 64, 4, bitmap_java_object_ptr);
   load(&output->height, 60, 4, bitmap_java_object_ptr);
 
-  uint8_t *bitmap_wrapper_ptr;
+  uint8_t *bitmap_wrapper_ptr = 0;
   load(&bitmap_wrapper_ptr, 40, 4, bitmap_java_object_ptr);
   uint8_t *bitmap_ptr;
   // The first 8 bytes of a BitmapWrapper object is the pointer to the
