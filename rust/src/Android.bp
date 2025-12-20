@@ -27,12 +27,7 @@ rust_library {
 }
 
 rust_binary {
-    name: "uprobestats_rs",
-    stem: "uprobestats",
-    enabled: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
-        true: true,
-        false: false,
-    }),
+    name: "uprobestats",
     srcs: ["main.rs"],
     defaults: [
         "uprobestats_apex_defaults",

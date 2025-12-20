@@ -9,12 +9,7 @@ filegroup {
         true: ["src/binder_service/*.java"],
         default: ["src/legacy/*.java"],
     }),
-    exclude_srcs: ["src/ArtTest.java"] + select(release_flag("RELEASE_UPROBESTATS_RUST"), {
-        true: [],
-        false: [
-            "src/UprobeStatsTestRust.java",
-        ],
-    }) + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+    exclude_srcs: ["src/ArtTest.java"] + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: [],
         false: [
             "src/UprobeStatsTestBridgeService.java",

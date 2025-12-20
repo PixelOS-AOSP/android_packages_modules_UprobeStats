@@ -39,16 +39,10 @@ prebuilt_etc {
 
 apex {
     name: "com.android.uprobestats",
-    binaries: select(release_flag("RELEASE_UPROBESTATS_RUST"), {
-        true: [
-            "uprobestats_rs",
-            "uprobestatsbpfload",
-        ],
-        false: [
-            "uprobestats",
-            "uprobestatsbpfload",
-        ],
-    }),
+    binaries: [
+        "uprobestats",
+        "uprobestatsbpfload",
+    ],
 
     prebuilts: [
         "com.android.uprobestats.init.rc",
