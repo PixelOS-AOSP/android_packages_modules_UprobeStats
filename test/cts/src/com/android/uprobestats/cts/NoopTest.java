@@ -15,8 +15,14 @@
  */
 package com.android.uprobestats.cts;
 
-import com.android.bedstead.harrier.BedsteadJUnit4;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
+import com.android.bedstead.harrier.BedsteadJUnit4;
+import com.android.compatibility.common.util.NonApiTest;
+
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -24,6 +30,15 @@ import org.junit.runner.RunWith;
 @RunWith(BedsteadJUnit4.class)
 public class NoopTest {
 
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
+
     @Test
-    public void testNothing() throws Exception {}
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_API)
+    @NonApiTest(
+            exemptionReasons = {},
+            justification =
+                    "Required for technical reasons. "
+                            + "Actual test class is included conditionally")
+    public void testNothing() {}
 }
