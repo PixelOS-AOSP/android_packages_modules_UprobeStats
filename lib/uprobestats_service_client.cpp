@@ -20,28 +20,32 @@
 #include <android/uprobestats_client.h>
 #include <log/log.h>
 
+#include <thread>
+
 using aidl::com::android::uprobestats::IUprobeStatsService;
 
 const char* kUprobeStatsServiceName = "uprobestats_service";
 
 void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
-  ndk::SpAIBinder binder =
-      ndk::SpAIBinder(AServiceManager_waitForService(kUprobeStatsServiceName));
-  if (binder == nullptr) {
-    LOG(ERROR) << "Failed to get uprobestats service";
-    return;
-  }
-
-  auto service = IUprobeStatsService::fromBinder(binder);
-  if (!service) {
-    LOG(ERROR) << "Failed to get uprobestats service from binder";
-    return;
-  }
-
   std::vector<uint8_t> config_vec(config, config + size);
-  auto status = service->startTasks(config_vec);
-  if (!status.isOk()) {
-    LOG(ERROR) << "Failed to start uprobestats: "
-               << status.getMessage();
-  }
+
+  std::thread([config_vec = std::move(config_vec)]() {
+    ndk::SpAIBinder binder =
+        ndk::SpAIBinder(AServiceManager_waitForService(kUprobeStatsServiceName));
+    if (binder == nullptr) {
+      LOG(ERROR) << "Failed to get uprobestats service";
+      return;
+    }
+
+    auto service = IUprobeStatsService::fromBinder(binder);
+    if (!service) {
+      LOG(ERROR) << "Failed to get uprobestats service from binder";
+      return;
+    }
+
+    auto status = service->startTasks(config_vec);
+    if (!status.isOk()) {
+      LOG(ERROR) << "Failed to start uprobestats: " << status.getMessage();
+    }
+  }).detach();
 }
