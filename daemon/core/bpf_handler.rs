@@ -12,6 +12,8 @@ pub mod art_test;
 #[cfg(feature = "bridge-service")]
 /// Disruptive app handlers
 pub mod disruptive_app;
+/// Generic instrumentation handlers
+pub mod generic_instrumentation;
 
 /// Interface for reading items out of a BPF ring buffer.
 /// # Safety

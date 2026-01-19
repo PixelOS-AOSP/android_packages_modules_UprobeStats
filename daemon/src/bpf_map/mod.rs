@@ -3,7 +3,6 @@
 use crate::atom::CodegenAtomWriter;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
-use crate::bpf_map::generic_instrumentation::{CallResultHandler, CallTimestampHandler};
 use crate::bpf_map::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
 };
@@ -23,6 +22,9 @@ use uprobestats_bpf::{
 use uprobestats_bpf_bindgen::BpfMapHandle;
 #[cfg(feature = "art-test")]
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
+use uprobestats_core::bpf_handler::generic_instrumentation::{
+    CallResultHandler, CallTimestampHandler,
+};
 #[cfg(feature = "bridge-service")]
 use uprobestats_core::bpf_handler::{
     accessibility::AccessibilityHandler,
@@ -37,7 +39,6 @@ use uprobestats_core::{
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
-mod generic_instrumentation;
 mod process_management;
 
 /// Polls the given map_path based on the existing registry of handlers.
@@ -47,8 +48,6 @@ pub fn poll_registry(map_path: &str, task: &ResolvedTask, duration: Duration) ->
     };
     poll_loop_fn(map_path, task, duration)
 }
-
-const JAVA_ARGUMENT_REGISTER_OFFSET: i32 = 2;
 
 fn poll_loop_generic<H: Handler + Default>(
     map_path: &str,
@@ -202,8 +201,8 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     if uprobestats_mainline_flags_rust::enable_binder_transaction() {
         register_handler::<BinderTransactionHandler>(&mut map);
     }
-    register_handler::<CallTimestampHandler>(&mut map);
-    register_handler::<CallResultHandler>(&mut map);
+    register_handler::<CallTimestampHandler<AStatsEventWriter>>(&mut map);
+    register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);
     register_handler::<SetUidTempAllowlistStateRecordHandler>(&mut map);
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler>(&mut map);
     #[cfg(feature = "bridge-service")]
