@@ -3,9 +3,6 @@
 use crate::atom::CodegenAtomWriter;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
-use crate::bpf_map::process_management::{
-    SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
-};
 #[cfg(feature = "bridge-service")]
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 #[cfg(feature = "bridge-service")]
@@ -25,6 +22,9 @@ use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
 use uprobestats_core::bpf_handler::generic_instrumentation::{
     CallResultHandler, CallTimestampHandler,
 };
+use uprobestats_core::bpf_handler::process_management::{
+    SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
+};
 #[cfg(feature = "bridge-service")]
 use uprobestats_core::bpf_handler::{
     accessibility::AccessibilityHandler,
@@ -39,7 +39,6 @@ use uprobestats_core::{
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
 mod bitmap_allocation;
-mod process_management;
 
 /// Polls the given map_path based on the existing registry of handlers.
 pub fn poll_registry(map_path: &str, task: &ResolvedTask, duration: Duration) -> Result<()> {
@@ -203,8 +202,8 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     }
     register_handler::<CallTimestampHandler<AStatsEventWriter>>(&mut map);
     register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);
-    register_handler::<SetUidTempAllowlistStateRecordHandler>(&mut map);
-    register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler>(&mut map);
+    register_handler::<SetUidTempAllowlistStateRecordHandler<AStatsEventWriter>>(&mut map);
+    register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler<AStatsEventWriter>>(&mut map);
     #[cfg(feature = "bridge-service")]
     {
         if uprobestats_flags_rust::a11y_runtime_permission() {
