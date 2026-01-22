@@ -14,6 +14,8 @@ pub mod art_test;
 pub mod disruptive_app;
 /// Generic instrumentation handlers
 pub mod generic_instrumentation;
+/// Process management handlers
+pub mod process_management;
 
 /// Interface for reading items out of a BPF ring buffer.
 /// # Safety
