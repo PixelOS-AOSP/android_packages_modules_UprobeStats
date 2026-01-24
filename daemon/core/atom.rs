@@ -88,7 +88,6 @@ pub enum CodegenAtom {
 }
 
 #[cfg(test)]
-#[cfg(feature = "bridge-service")]
 pub mod test {
     use super::*;
     pub(crate) struct TestAtomWriter<A> {
