@@ -27,7 +27,7 @@
             "name": "uprobestats-core-test"
         },
         {
-            "name": "CtsStatsdAtomHostTestCases"
+            "name": "CtsPerfAtomHostTestCases"
         }
     ]
 }
