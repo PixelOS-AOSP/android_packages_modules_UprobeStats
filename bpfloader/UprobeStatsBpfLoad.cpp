@@ -52,8 +52,9 @@
 
 #define BPF_FS_PATH "/sys/fs/bpf/"
 
-// Size of the BPF log buffer for verifier logging
-#define BPF_LOAD_LOG_SZ 0xfffff
+// Size of the BPF log buffer for verifier logging - use 0 to disable logging
+// #define BPF_LOAD_LOG_SZ 0xfffff
+#define BPF_LOAD_LOG_SZ 0
 
 using android::base::EndsWith;
 using android::base::StartsWith;
@@ -835,9 +836,9 @@ static int loadCodeSections(const char *elfPath, vector<codeSection> &cs,
           .insns = ptr_to_u64(cs[i].data.data()),
           .insn_cnt =
               static_cast<__u32>(cs[i].data.size() / sizeof(struct bpf_insn)),
-          .log_level = 1,
-          .log_buf = ptr_to_u64(log_buf.data()),
-          .log_size = static_cast<__u32>(log_buf.size()),
+          .log_level = BPF_LOAD_LOG_SZ ? 1 : 0,
+          .log_buf = BPF_LOAD_LOG_SZ ? ptr_to_u64(log_buf.data()) : 0,
+          .log_size = BPF_LOAD_LOG_SZ ? static_cast<__u32>(log_buf.size()) : 0,
       };
       strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
       fd.reset(bpf(BPF_PROG_LOAD, req));
@@ -846,12 +847,13 @@ static int loadCodeSections(const char *elfPath, vector<codeSection> &cs,
         ALOGW("BPF_PROG_LOAD call for %s (%s) returned fd: %d (%s)", elfPath,
               cs[i].name.c_str(), fd.get(), std::strerror(errno));
 
-        vector<string> lines = android::base::Split(log_buf.data(), "\n");
+        if (BPF_LOAD_LOG_SZ) {
+          vector<string> lines = android::base::Split(log_buf.data(), "\n");
 
-        ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
-        for (const auto &line : lines)
-          ALOGW("%s", line.c_str());
-        ALOGW("BPF_PROG_LOAD - END log_buf contents.");
+          ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
+          for (const auto &line : lines) ALOGW("%s", line.c_str());
+          ALOGW("BPF_PROG_LOAD - END log_buf contents.");
+        }
 
         if (cs[i].prog_def->optional) {
           ALOGW("failed program is marked optional - continuing...");
