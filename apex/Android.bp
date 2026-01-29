@@ -84,6 +84,11 @@ apex {
     }),
 }
 
+sdk {
+    name: "uprobestats-module-sdk",
+    apexes: ["com.android.uprobestats"],
+}
+
 bootclasspath_fragment {
     enabled: select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
         true: true,
