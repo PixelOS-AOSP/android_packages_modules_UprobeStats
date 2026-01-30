@@ -30,6 +30,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.service.uprobestats.DynamicInstrumentationManager;
@@ -54,8 +55,8 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     private final Context mContext;
     private final HandlerThread mHandlerThread;
     private final Handler mFlushHandler;
-    private static final int EVENT_BUFFER_CAPACITY = 32;
-    private static final long FLUSH_TIMEOUT = Duration.ofSeconds(60).toMillis();
+    private static final int EVENT_BUFFER_CAPACITY = 1024;
+    private static final long FLUSH_TIMEOUT = Duration.ofHours(12).toMillis();
     private static final long TEST_FLUSH_TIMEOUT = Duration.ofSeconds(10).toMillis();
     private final ArrayDeque<Event> mEventBuffer = new ArrayDeque<>(EVENT_BUFFER_CAPACITY);
     private long flushTimeout = FLUSH_TIMEOUT;
@@ -183,6 +184,26 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                                             IUprobeStatsEventListener.Stub.asInterface(service);
                                     try {
                                         eventListener.onEvent(events);
+                                        if (DEBUG) {
+                                            Slog.d(TAG, "Sent " + events.size() + " events");
+                                            int count = 0;
+                                            for (Event event : events) {
+                                                Parcel parcel = Parcel.obtain();
+                                                event.writeToParcel(parcel, 0);
+                                                int sizeInBytes = parcel.dataSize();
+                                                Slog.d(
+                                                        TAG,
+                                                        "Event "
+                                                                + count
+                                                                + " Payload ID: "
+                                                                + event.payloadId
+                                                                + " and size: "
+                                                                + sizeInBytes
+                                                                + " bytes");
+                                                parcel.recycle();
+                                                count++;
+                                            }
+                                        }
                                     } catch (RemoteException e) {
                                         Slog.e(TAG, "Failed to send events", e);
                                     }
