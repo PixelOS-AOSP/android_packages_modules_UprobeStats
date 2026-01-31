@@ -9,6 +9,8 @@ use anyhow::{anyhow, bail, Result};
 use log::{debug, trace};
 use std::{collections::HashMap, num::TryFromIntError, time::Duration};
 use uprobestats_bpf_structs::AccessibilityEvent;
+use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats;
+use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::Entry::Entry;
 
 /// a11y handler
 #[derive(Default)]
@@ -37,7 +39,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>, B: UprobeStatsBridgeService> Handle
         let event: Result<Option<Event>> = if data.variant == 1 {
             handle_permission_grant_event(&mut self.bridge_service, data, timestamp_ns)
         } else if data.variant == 2 {
-            handle_a11y_event(data, timestamp_ns)
+            handle_a11y_event(&mut self.bridge_service, data, timestamp_ns)
         } else {
             bail!("Invalid variant: {variant}")
         };
@@ -128,18 +130,29 @@ fn handle_permission_grant_event<B: UprobeStatsBridgeService>(
 
     trace!("uid={uid}");
 
-    Ok(Some(Event::new(
+    let event = Event::new(
         uid,
         timestamp_ns,
         EventType::RuntimePermissionGrant(permission_name.to_string()),
-    )))
+    );
+
+    service.enqueueEvent(&event.clone().into(), false)?;
+
+    Ok(Some(event))
 }
 
-fn handle_a11y_event(data: &AccessibilityEvent, timestamp_ns: u64) -> Result<Option<Event>> {
+fn handle_a11y_event<B: UprobeStatsBridgeService>(
+    service: &mut B,
+    data: &AccessibilityEvent,
+    timestamp_ns: u64,
+) -> Result<Option<Event>> {
     // IAccessibilityServiceConnection event
     let uid = data.uid;
     let code = data.code;
     trace!("uid={uid}, code={code}");
+    let event = Event::new(uid, timestamp_ns, EventType::A11y(code));
+    let service = service.get()?;
+    service.enqueueEvent(&event.clone().into(), false)?;
     Ok(Some(Event::new(uid, timestamp_ns, EventType::A11y(code))))
 }
 
@@ -199,7 +212,7 @@ fn associate_events(
     a11y_runtime_permission_grants
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Event {
     uid: i32,
     timestamp: Duration,
@@ -212,7 +225,38 @@ impl Event {
     }
 }
 
-#[derive(Debug)]
+impl From<Event> for uprobestats::Event::Event {
+    fn from(event: Event) -> Self {
+        Self {
+            uid: event.uid,
+            timestampMs: event.timestamp.as_millis().try_into().unwrap(),
+            payloadId: match event.variant {
+                EventType::A11y(_) => 1,
+                EventType::RuntimePermissionGrant(_) => 2,
+            },
+            payload: match event.variant {
+                EventType::A11y(code) => vec![
+                    Entry {
+                        key: "CODE".to_string(),
+                        value: uprobestats::Value::Value::IntValue(code),
+                    },
+                    Entry {
+                        key: "INTERFACE_NAME".to_string(),
+                        value: uprobestats::Value::Value::StringValue(
+                            "IAccessibilityServiceConnection".to_string(),
+                        ),
+                    },
+                ],
+                EventType::RuntimePermissionGrant(permission_name) => vec![Entry {
+                    key: "PERMISSION_NAME".to_string(),
+                    value: uprobestats::Value::Value::StringValue(permission_name),
+                }],
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 enum EventType {
     RuntimePermissionGrant(String),
     A11y(i32),
@@ -247,7 +291,9 @@ mod test {
     use mockall::predicate::*;
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
-    use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::IUprobeStatsBridgeService::MockIUprobeStatsBridgeService;
+    use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::{
+        self, IUprobeStatsBridgeService::MockIUprobeStatsBridgeService,
+    };
     use uprobestats_proto::config::uprobestats_config::Task;
     use zerocopy::FromBytes;
 
@@ -316,6 +362,73 @@ mod test {
         }
     }
 
+    fn expect_enqueue_a11y_event(
+        mock_bridge: &mut MockIUprobeStatsBridgeService,
+        uid: i32,
+        timestamp: Duration,
+        code: i32,
+    ) {
+        mock_bridge
+            .expect_enqueueEvent()
+            .withf(move |event, flush| {
+                if *flush {
+                    return false;
+                }
+                if event.uid != uid {
+                    return false;
+                }
+                if event.timestampMs != timestamp.as_millis().try_into().unwrap() {
+                    return false;
+                }
+                if event.payloadId != 1 {
+                    return false;
+                }
+                let has_code = event.payload.iter().any(|e| {
+                    e.key == "CODE"
+                        && matches!(&e.value, uprobestats::Value::Value::IntValue(v) if *v == code)
+                });
+                let has_interface = event.payload.iter().any(|e| {
+                    e.key == "INTERFACE_NAME"
+                        && matches!(&e.value, uprobestats::Value::Value::StringValue(s) if s == "IAccessibilityServiceConnection")
+                });
+                has_code && has_interface
+            })
+            .returning(|_, _| Ok(()))
+            .once();
+    }
+
+    fn expect_enqueue_permission_grant_event(
+        mock_bridge: &mut MockIUprobeStatsBridgeService,
+        uid: i32,
+        timestamp: Duration,
+        permission_name: &str,
+    ) {
+        let permission_name = permission_name.to_string();
+        mock_bridge
+            .expect_enqueueEvent()
+            .withf(move |event, flush| {
+                if *flush {
+                    return false;
+                }
+                if event.uid != uid {
+                    return false;
+                }
+                if event.timestampMs != timestamp.as_millis().try_into().unwrap() {
+                    return false;
+                }
+                if event.payloadId != 2 {
+                    return false;
+                }
+                let has_permission = event.payload.iter().any(|e| {
+                    e.key == "PERMISSION_NAME"
+                        && matches!(&e.value, uprobestats::Value::Value::StringValue(s) if s == &permission_name)
+                });
+                has_permission
+            })
+            .returning(|_, _| Ok(()))
+            .once();
+    }
+
     #[test]
     fn permission_grant_after_a11y_event_is_reported() -> Result<()> {
         let a11y_timestamp = Duration::from_secs(1);
@@ -330,6 +443,13 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(TEST_PACKAGE_NAME))
             .returning(move |_| Ok(TEST_UID));
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp, TEST_A11Y_CODE);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp,
+            TEST_PERMISSION_NAME,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
@@ -460,6 +580,13 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(TEST_PACKAGE_NAME))
             .returning(move |_| Ok(TEST_UID));
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp, TEST_A11Y_CODE);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp,
+            TEST_PERMISSION_NAME,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
@@ -502,6 +629,13 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(TEST_PACKAGE_NAME))
             .returning(move |_| Ok(TEST_UID));
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp, TEST_A11Y_CODE);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp,
+            TEST_PERMISSION_NAME,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
@@ -547,6 +681,14 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(TEST_PACKAGE_NAME))
             .returning(move |_| Ok(TEST_UID));
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp1, a11y_code1);
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp2, a11y_code2);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp,
+            TEST_PERMISSION_NAME,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(&task, &create_a11y_event(TEST_UID, a11y_code1, a11y_timestamp1))?;
@@ -608,6 +750,20 @@ mod test {
                 panic!("getUidForPackage called with unexpected package name: {}", pkg);
             }
         });
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp_a,
+            permission_name_a,
+        );
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp1, a11y_code1);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp_b,
+            permission_name_b,
+        );
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp2, a11y_code2);
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(
@@ -667,6 +823,12 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(TEST_PACKAGE_NAME))
             .returning(move |_| Ok(TEST_UID));
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            TEST_UID,
+            permission_timestamp,
+            TEST_PERMISSION_NAME,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(
@@ -698,7 +860,10 @@ mod test {
     fn no_permission_grants() -> Result<()> {
         let a11y_timestamp = Duration::from_millis(10);
 
-        let (mut handler, task) = setup_handler_and_task(MockIUprobeStatsBridgeService::new());
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        expect_enqueue_a11y_event(&mut mock_bridge, TEST_UID, a11y_timestamp, TEST_A11Y_CODE);
+
+        let (mut handler, task) = setup_handler_and_task(mock_bridge);
         handler.on_item(&task, &create_a11y_event(TEST_UID, TEST_A11Y_CODE, a11y_timestamp))?;
 
         handler.on_finished()?;
@@ -759,6 +924,20 @@ mod test {
             .expect_getUidForPackage()
             .with(eq(package_name_b))
             .returning(move |_| Ok(uid_b));
+        expect_enqueue_a11y_event(&mut mock_bridge, uid_a, a11y_timestamp_a, a11y_code_a);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            uid_a,
+            permission_timestamp_a,
+            permission_name_a,
+        );
+        expect_enqueue_a11y_event(&mut mock_bridge, uid_b, a11y_timestamp_b, a11y_code_b);
+        expect_enqueue_permission_grant_event(
+            &mut mock_bridge,
+            uid_b,
+            permission_timestamp_b,
+            permission_name_b,
+        );
 
         let (mut handler, task) = setup_handler_and_task(mock_bridge);
 
