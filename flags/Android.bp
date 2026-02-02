@@ -29,6 +29,16 @@ cc_aconfig_library {
     min_sdk_version: "36",
 }
 
+cc_aconfig_library {
+    name: "uprobestats_flags_c_lib",
+    aconfig_declarations: "uprobestats_flags",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.uprobestats",
+    ],
+    min_sdk_version: "36",
+}
+
 java_aconfig_library {
     name: "art_flags_uprobestats_java_lib",
     aconfig_declarations: "art-aconfig-flags",

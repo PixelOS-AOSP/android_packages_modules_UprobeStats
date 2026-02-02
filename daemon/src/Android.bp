@@ -32,6 +32,7 @@ rust_binary {
     defaults: [
         "uprobestats_apex_defaults",
         "uprobestats_features_defaults",
+        "uprobestats_flags_rustlibs_defaults",
         "uprobestats_core_rustlibs_defaults",
     ],
     prefer_rlib: true,

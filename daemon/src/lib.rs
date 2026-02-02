@@ -9,7 +9,6 @@ mod device_properties;
 mod process;
 mod resolver_impl;
 pub mod task;
-#[cfg(feature = "binder-service")]
 pub mod uprobestats_service;
 
 use rustutils::android::system_properties;
