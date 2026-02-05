@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Result};
 use statslog_uprobestats::{
-    bind_service_locked_with_bal_flags_reported, bind_service_locked_with_bal_flags_uids_reported,
-    disabled_launcher_activity_uids_reported, set_component_enabled_setting_reported,
+    android_graphics_bitmap_allocated, android_graphics_bitmap_allocation_snapshot,
+    android_graphics_bitmap_scaled, bind_service_locked_with_bal_flags_reported,
+    bind_service_locked_with_bal_flags_uids_reported, disabled_launcher_activity_uids_reported,
+    set_component_enabled_setting_reported,
 };
 use uprobestats_core::atom::{AtomWriter, CodegenAtom};
 
@@ -50,7 +52,80 @@ impl AtomWriter<CodegenAtom> for CodegenAtomWriter {
                     binder_uid, bindee_uid,
                 )
             }
+            CodegenAtom::AndroidGraphicsBitmapAllocated { uid, width, height } => {
+                android_graphics_bitmap_allocated::stats_write(uid, width, height)
+            }
+            CodegenAtom::AndroidGraphicsBitmapScaled {
+                uid,
+                width,
+                height,
+                scaled_width,
+                scaled_height,
+                pixel_storage_type,
+                activity_name,
+            } => android_graphics_bitmap_scaled::stats_write(
+                uid,
+                width,
+                height,
+                scaled_width,
+                scaled_height,
+                convert_to_bitmap_scaled_pixel_storage_type_enum(pixel_storage_type),
+                &activity_name,
+            ),
+            CodegenAtom::AndroidGraphicsBitmapAllocationSnapshot {
+                uid,
+                width,
+                height,
+                pixel_storage_type,
+                snapshot_id,
+                snapshot_type,
+                activity_name,
+            } => android_graphics_bitmap_allocation_snapshot::stats_write(
+                uid,
+                width,
+                height,
+                convert_to_pixel_storage_type_enum(pixel_storage_type),
+                snapshot_id,
+                convert_to_snapshot_type_enum(snapshot_type),
+                &activity_name,
+            ),
         }
         .map_err(|e| anyhow!(e))
+    }
+}
+
+fn convert_to_pixel_storage_type_enum(
+    pixel_storage_type: i32,
+) -> android_graphics_bitmap_allocation_snapshot::PixelStorageType {
+    match pixel_storage_type {
+        0 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeWrappedPixelRef,
+        1 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeHeap,
+        2 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeAshmem,
+        3 => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeHardware,
+        _ => android_graphics_bitmap_allocation_snapshot::PixelStorageType::PixelStorageTypeUnspecified,
+    }
+}
+
+fn convert_to_bitmap_scaled_pixel_storage_type_enum(
+    pixel_storage_type: i32,
+) -> android_graphics_bitmap_scaled::PixelStorageType {
+    match pixel_storage_type {
+        0 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeWrappedPixelRef,
+        1 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeHeap,
+        2 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeAshmem,
+        3 => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeHardware,
+        _ => android_graphics_bitmap_scaled::PixelStorageType::PixelStorageTypeUnspecified,
+    }
+}
+
+fn convert_to_snapshot_type_enum(
+    snapshot_type: i32,
+) -> android_graphics_bitmap_allocation_snapshot::SnapshotType {
+    match snapshot_type {
+        1 => {
+            android_graphics_bitmap_allocation_snapshot::SnapshotType::SnapshotTypeMaxAllocationSize
+        }
+        2 => android_graphics_bitmap_allocation_snapshot::SnapshotType::SnapshotTypeRandomSample,
+        _ => android_graphics_bitmap_allocation_snapshot::SnapshotType::SnapshotTypeUnspecified,
     }
 }
