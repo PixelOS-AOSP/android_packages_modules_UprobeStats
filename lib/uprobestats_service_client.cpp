@@ -15,10 +15,14 @@
  */
 
 #include <aidl/com/android/uprobestats/IUprobeStatsService.h>
+#include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android/binder_manager.h>
 #include <android/uprobestats_client.h>
+#include <com_android_uprobestats_flags.h>
 #include <log/log.h>
+#include <private/android_filesystem_config.h>
 
 #include <thread>
 
@@ -30,10 +34,19 @@ void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
   std::vector<uint8_t> config_vec(config, config + size);
 
   std::thread([config_vec = std::move(config_vec)]() {
-    ndk::SpAIBinder binder =
-        ndk::SpAIBinder(AServiceManager_waitForService(kUprobeStatsServiceName));
+    ndk::SpAIBinder binder = ndk::SpAIBinder(
+        AServiceManager_waitForService(kUprobeStatsServiceName));
+    // TODO(b/480959242): Remove this fallback once SDK 37 is available.
     if (binder == nullptr) {
-      LOG(ERROR) << "Failed to get uprobestats service";
+      LOG(WARNING) << "Failed to get uprobestats service, falling back to file "
+                      "based config";
+      const char* filename = "/data/misc/uprobestats-configs/config";
+      android::base::WriteStringToFile(
+          std::string(reinterpret_cast<const char*>(config_vec.data()),
+                      config_vec.size()),
+          filename);
+      chmod(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+      android::base::SetProperty("ctl.start", "uprobestats");
       return;
     }
 

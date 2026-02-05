@@ -47,6 +47,7 @@ libuprobestats_client_cc_library_shared {
             "libbase",
             "libbinder_ndk",
             "uprobestats-service-aidl-ndk",
+            "uprobestats_flags_c_lib",
         ],
         default: ["libbase"],
     }),
