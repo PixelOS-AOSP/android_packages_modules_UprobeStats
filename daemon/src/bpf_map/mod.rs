@@ -1,5 +1,4 @@
 //! Deals with fetching data BPF ring buffers ("maps").
-#[cfg(feature = "bridge-service")]
 use crate::atom::CodegenAtomWriter;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
 #[cfg(feature = "bridge-service")]
