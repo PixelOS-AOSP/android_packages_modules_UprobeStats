@@ -38,6 +38,8 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Ignore;
@@ -81,6 +83,27 @@ public class UprobeStatsManualTest extends BaseHostJUnit4Test {
                     ReportUtils.getEventMetricDataList(
                             getDevice(), mUprobeStatsTestRule.getRegistry());
             assertThat(data.size()).isGreaterThan(0);
+        }
+    }
+
+    private static final List<String> TEST_CONFIG_NAMES =
+            Arrays.asList(
+                    "binder",
+                    "disruptive_app",
+                    "runtime_permission",
+                    "test_bss_setBatteryState_artApi",
+                    "test_updateDeviceIdleTempAllowlist",
+                    "bitmap_snapshot");
+
+    // TODO(b/454898357): Replace with tests that actually assert that uprobestats handles
+    // concurrent configs per requirements.
+    @Test
+    public void runAllConfigsInParralel() throws Exception {
+        List<Thread> threads = new ArrayList<>();
+        for (String configName : TEST_CONFIG_NAMES) {
+            System.out.println("uprobestats: Starting config: " + configName);
+            configureStatsDAndStartUprobeStats(
+                    getClass(), getDevice(), configName + ".textproto", 1217);
         }
     }
 }

@@ -1,15 +1,13 @@
 //! UprobeStatsService is a binder service that receives task configurations from the statsd
 //! process and starts tasks according to the configuration.
 use crate::{task, task::GlobalState};
-use binder::{Interface, IntoBinderResult, Status};
+use binder::{Interface, Status};
 use log::{error, trace};
 use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use uprobestats_service_aidl::aidl::com::android::uprobestats::IUprobeStatsService::{
-    IUprobeStatsService, FAILURE_CONFIG_RESOLUTION, FAILURE_CONFLICT,
-};
+use uprobestats_service_aidl::aidl::com::android::uprobestats::IUprobeStatsService::IUprobeStatsService;
 
 /// The name of the UprobeStatsService.
 pub const UPROBESTATS_SERVICE_NAME: &str = "uprobestats_service";
@@ -33,18 +31,28 @@ impl IUprobeStatsService for UprobeStatsService {
     fn startTasks(&self, config: &[u8]) -> Result<(), Status> {
         trace!("received startTasks call");
 
-        let task = task::resolve_config(config)
-            .inspect_err(|e| error!("{e}"))
-            .or_service_specific_exception(FAILURE_CONFIG_RESOLUTION)?;
-
-        let mut state = self.state.lock().unwrap();
-        task::update_polled_bpf_maps(&mut state, &task)
-            .inspect_err(|e| error!("{e}"))
-            .or_service_specific_exception(FAILURE_CONFLICT)?;
-
+        let config = config.to_vec();
         let state = self.state.clone();
         thread::spawn(move || {
+            let task = match task::resolve_config(&config) {
+                Ok(task) => task,
+                Err(e) => {
+                    error!("{e}");
+                    return;
+                }
+            };
+
+            // Create a scope so that the lock is released before executing the task.
+            {
+                let mut state = state.lock().unwrap();
+                if let Err(e) = task::update_polled_bpf_maps(&mut state, &task) {
+                    error!("{e}");
+                    return;
+                }
+            }
+
             task::execute(&task);
+
             let mut state = state.lock().unwrap();
             task::cleanup_polled_bpf_maps(&mut state, &task);
         });
