@@ -85,6 +85,29 @@ pub enum CodegenAtom {
         binder_uid: i32,
         bindee_uid: i32,
     },
+    AndroidGraphicsBitmapAllocated {
+        uid: i32,
+        width: i32,
+        height: i32,
+    },
+    AndroidGraphicsBitmapScaled {
+        uid: i32,
+        width: i32,
+        height: i32,
+        scaled_width: i32,
+        scaled_height: i32,
+        pixel_storage_type: i32,
+        activity_name: String,
+    },
+    AndroidGraphicsBitmapAllocationSnapshot {
+        uid: i32,
+        width: i32,
+        height: i32,
+        pixel_storage_type: i32,
+        snapshot_id: i64,
+        snapshot_type: i32,
+        activity_name: String,
+    },
 }
 
 #[cfg(test)]
