@@ -1,8 +1,6 @@
 //! Deals with fetching data BPF ring buffers ("maps").
-#[cfg(feature = "bridge-service")]
 use crate::atom::CodegenAtomWriter;
 use crate::bpf_map::binder_transaction::BinderTransactionHandler;
-use crate::bpf_map::bitmap_allocation::{BitmapAllocationHandlerV0, BitmapAllocationHandlerV1};
 #[cfg(feature = "bridge-service")]
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 #[cfg(feature = "bridge-service")]
@@ -18,6 +16,9 @@ use uprobestats_bpf::{
 use uprobestats_bpf_bindgen::BpfMapHandle;
 #[cfg(feature = "art-test")]
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
+use uprobestats_core::bpf_handler::bitmap_allocation::{
+    BitmapAllocationHandlerV0, BitmapAllocationHandlerV1,
+};
 use uprobestats_core::bpf_handler::generic_instrumentation::{
     CallResultHandler, CallTimestampHandler,
 };
@@ -37,7 +38,6 @@ use uprobestats_core::{
 
 /// Contains handlers and map writers for Binder transaction-related BPF maps.
 pub mod binder_transaction;
-mod bitmap_allocation;
 
 /// Polls the given map_path based on the existing registry of handlers.
 pub fn poll_registry(map_path: &str, task: &ResolvedTask, duration: Duration) -> Result<()> {
@@ -192,9 +192,9 @@ type ComponentEnabledSettingHandlerImpl = ComponentEnabledSettingHandler<
 static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     let mut map = HashMap::new();
     if uprobestats_mainline_flags_rust::enable_bitmap_snapshot() {
-        register_handler::<BitmapAllocationHandlerV1>(&mut map);
+        register_handler::<BitmapAllocationHandlerV1<CodegenAtomWriter>>(&mut map);
     } else {
-        register_handler::<BitmapAllocationHandlerV0>(&mut map);
+        register_handler::<BitmapAllocationHandlerV0<CodegenAtomWriter>>(&mut map);
     }
     if uprobestats_mainline_flags_rust::enable_binder_transaction() {
         register_handler::<BinderTransactionHandler>(&mut map);

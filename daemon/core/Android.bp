@@ -14,6 +14,7 @@ rust_defaults {
         "libzerocopy",
         "uprobestats-bridge-service-aidl-rust",
         "liblibc",
+        "librand",
     ],
 }
 
