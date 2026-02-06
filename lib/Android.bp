@@ -47,10 +47,48 @@ libuprobestats_client_cc_library_shared {
             "libbase",
             "libbinder_ndk",
             "uprobestats-service-aidl-ndk",
+            "libstatssocket",
             "uprobestats_flags_c_lib",
         ],
-        default: ["libbase"],
+        default: [
+            "libbase",
+            "libstatssocket",
+        ],
     }),
+    static_libs: [
+        "libstatslog_uprobestats",
+    ],
     export_include_dirs: ["include"],
     header_libs: ["libcutils_headers"],
+}
+
+genrule {
+    name: "statslog_uprobestats.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_uprobestats.h --module uprobestats --namespace android,uprobestats,stats",
+    out: ["statslog_uprobestats.h"],
+}
+
+genrule {
+    name: "statslog_uprobestats.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_uprobestats.cpp --header $(genDir)/statslog_uprobestats.h --module uprobestats --namespace android,uprobestats,stats --importHeader statslog_uprobestats.h",
+    out: ["statslog_uprobestats.cpp"],
+}
+
+cc_library_static {
+    name: "libstatslog_uprobestats",
+    srcs: [
+        ":statslog_uprobestats.cpp",
+    ],
+    generated_headers: ["statslog_uprobestats.h"],
+    export_generated_headers: ["statslog_uprobestats.h"],
+    shared_libs: [
+        "libstatssocket",
+    ],
+    apex_available: [
+        "com.android.uprobestats",
+        "//apex_available:platform",
+    ],
+    min_sdk_version: "36",
 }
