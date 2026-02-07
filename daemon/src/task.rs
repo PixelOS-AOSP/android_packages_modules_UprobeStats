@@ -9,6 +9,7 @@ use anyhow::{anyhow, bail, ensure, Result};
 #[cfg(feature = "binder-service")]
 use binder::LazyServiceGuard;
 use log::{debug, error, trace};
+use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
 use std::{
     collections::HashSet,
     ffi::c_ulong,
@@ -104,11 +105,23 @@ pub fn execute(task: &ResolvedTask) {
     match setup_binder_transaction_filters(&task.resolved_probes) {
         Ok(map) => {
             if let Err(e) = attach_probes_and_poll_maps(task) {
+                if let Err(e) = uprobe_stats_internal_error::stats_write(
+                    uprobe_stats_internal_error::ErrorType::ErrorTypeTaskExecutionFailed,
+                    task.task.task_id.unwrap_or(0),
+                ) {
+                    error!("Failed to write uprobe_stats_internal_error atom for task execution failure: {:?}", e);
+                };
                 error!("task execution failed: {e:?}");
             }
-            cleanup_binder_transaction_filters(map);
+            cleanup_binder_transaction_filters(map, task.task.task_id.unwrap_or(0));
         }
         Err(e) => {
+            if let Err(e) = uprobe_stats_internal_error::stats_write(
+                uprobe_stats_internal_error::ErrorType::ErrorTypeBinderFilterSetupFailed,
+                task.task.task_id.unwrap_or(0),
+            ) {
+                error!("Failed to write uprobe_stats_internal_error atom for binder filter setup failure: {:?}", e);
+            };
             error!(
                 "Failed to setup binder transaction filters. Abandoning execution of task: {e:?}"
             );
@@ -175,6 +188,46 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
     Ok(())
 }
 
+fn bpf_program_path_to_enum(path: &str) -> uprobe_stats_bpf_attached::BpfProgram {
+    use uprobe_stats_bpf_attached::BpfProgram::*;
+    let Some(filename) = path.rsplit('/').next() else {
+        error!("Failed to extract filename from path: {}", path);
+        return BpfProgramUnspecified;
+    };
+    match filename {
+        "prog_Accessibility_uprobe_accessibility_service_connection" => {
+            ProgAccessibilityUprobeAccessibilityServiceConnection
+        }
+        "prog_Accessibility_uprobe_grant_runtime_permission" => {
+            ProgAccessibilityUprobeGrantRuntimePermission
+        }
+        "prog_Binder_uprobe_exec_transact_internal" => ProgBinderUprobeExecTransactInternal,
+        "prog_BitmapAllocation_uprobe_activity_perform_start" => {
+            ProgBitmapAllocationUprobeActivityPerformStart
+        }
+        "prog_BitmapAllocation_uprobe_apply_free_function" => {
+            ProgBitmapAllocationUprobeApplyFreeFunction
+        }
+        "prog_BitmapAllocation_uprobe_bitmap_creation_for_snapshot" => {
+            ProgBitmapAllocationUprobeBitmapCreationForSnapshot
+        }
+        "prog_BitmapAllocation_uprobe_create_scaled_bitmap" => {
+            ProgBitmapAllocationUprobeCreateScaledBitmap
+        }
+        "prog_DisruptiveApp_uprobe_bind_service_locked" => ProgDisruptiveAppUprobeBindServiceLocked,
+        "prog_DisruptiveApp_uprobe_set_component_enabled_setting" => {
+            ProgDisruptiveAppUprobeSetComponentEnabledSetting
+        }
+        "prog_GenericInstrumentation_uprobe_call_detail" => {
+            ProgGenericInstrumentationUprobeCallDetail
+        }
+        "prog_GenericInstrumentation_uprobe_call_timestamp" => {
+            ProgGenericInstrumentationUprobeCallTimestamp
+        }
+        _ => BpfProgramUnspecified,
+    }
+}
+
 /// Step 3b: executes the blocking, long-running part of a task:
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
@@ -195,6 +248,23 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
                 task.pid,
                 probe.bpf_program_path.clone(),
             )?;
+            if let Err(e) = uprobe_stats_bpf_attached::stats_write(
+                bpf_program_path_to_enum(&probe.bpf_program_path),
+                probe
+                    .probe
+                    .fully_qualified_class_name
+                    .as_deref()
+                    .expect("ResolvedProbe.probe.fully_qualified_class_name should be set"),
+                probe
+                    .probe
+                    .method_name
+                    .as_deref()
+                    .expect("ResolvedProbe.probe.method_name should be set"),
+                &task.process_name,
+                task.task.task_id.unwrap_or(0),
+            ) {
+                error!("Failed to write uprobe_stats_bpf_attached atom: {:?}", e);
+            }
             trace!(
                 "successfully attached bpf {} to {} at {}. fd: {}",
                 probe.bpf_program_path,
@@ -242,11 +312,21 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
 /// This step must not fail, as the following cleanup steps are always required.
 fn cleanup_binder_transaction_filters(
     binder_interface_bpf_map: Option<BinderInterfaceMapAccessor>,
+    task_id: i64,
 ) {
     let Some(binder_interface_bpf_map) = binder_interface_bpf_map else {
         return;
     };
     if let Err(e) = binder_interface_bpf_map.drain() {
+        if let Err(e) = uprobe_stats_internal_error::stats_write(
+            uprobe_stats_internal_error::ErrorType::ErrorTypeBinderFilterCleanupFailed,
+            task_id,
+        ) {
+            error!(
+                "Failed to write uprobe_stats_internal_error atom for binder filter cleanup failure: {:?}",
+                e
+            );
+        };
         error!("Failed to drain binder interface bpf map: {e:?}");
     }
 }

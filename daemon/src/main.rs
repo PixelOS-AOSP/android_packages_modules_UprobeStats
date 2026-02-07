@@ -4,6 +4,7 @@ use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
 use log::{error, info, trace, LevelFilter};
 use rustutils::android::system_properties;
+use statslog_uprobestats::uprobe_stats_invocation;
 use std::{
     cmp::{max, min},
     fs::File,
@@ -39,6 +40,12 @@ fn main() {
 
 fn main_impl() -> Result<()> {
     trace!("started");
+
+    if let Err(e) = uprobe_stats_invocation::stats_write(
+        uprobe_stats_invocation::InvocationType::InvocationTypeServiceStarted,
+    ) {
+        error!("Failed to write uprobe_stats_invocation atom: {:?}", e);
+    };
 
     ProcessState::start_thread_pool();
     trace!("initial flag check done and tread pool started");

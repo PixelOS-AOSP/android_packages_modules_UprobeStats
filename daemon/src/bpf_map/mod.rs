@@ -6,7 +6,7 @@ use crate::bridge_service::DefaultUprobeStatsBridgeService;
 #[cfg(feature = "bridge-service")]
 use crate::device_properties::DefaultDeviceProperties;
 use anyhow::{bail, Result};
-use log::{debug, trace};
+use log::{debug, error, trace};
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::LazyLock, time::Duration};
 use uprobestats_bpf::{
@@ -57,6 +57,7 @@ fn poll_loop_generic<H: Handler + Default>(
     }
     let mut handler = H::default();
     let timer = Timer::new(duration);
+    let mut total_events: i64 = 0;
     while let Some(remaining_millis) = timer.remaining_millis() {
         let remaining_millis: i32 = remaining_millis.try_into()?;
         debug!("polling {} for {} seconds", map_path, remaining_millis / 1000);
@@ -66,12 +67,57 @@ fn poll_loop_generic<H: Handler + Default>(
         let result: Result<Vec<H::T>> = unsafe { poll_ring_buf(map_path, remaining_millis) };
         let result = result?;
         trace!("Done polling {}, event count: {}", map_path, result.len());
+        total_events += result.len() as i64;
         for i in &result {
             handler.on_item(task, i)?;
         }
     }
     handler.on_finished()?;
+
+    let path_enum = get_map_path_enum(map_path);
+    if let Err(e) = statslog_uprobestats::uprobe_stats_bpf_map_polled::stats_write(
+        path_enum,
+        duration.as_millis().try_into()?,
+        total_events,
+        task.task.task_id.unwrap_or(0),
+    ) {
+        error!("Failed to write uprobe_stats_bpf_map_polled atom: {:?}", e);
+    };
     Ok(())
+}
+
+fn get_map_path_enum(map_path: &str) -> statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath {
+    let Some(filename) = map_path.rsplit('/').next() else {
+        error!("Failed to extract filename from map_path: {}", map_path);
+        return statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified;
+    };
+    match filename {
+        "Accessibility_output_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathAccessibilityOutputBuf
+        }
+        "Binder_output_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBinderOutputBuf
+        }
+        "BitmapAllocation_output" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBitmapAllocationOutput
+        }
+        "DisruptiveApp_bind_service_locked_output_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
+        }
+        "DisruptiveApp_component_enabled_setting_output_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
+        }
+        "GenericInstrumentation_call_detail_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallDetailBuf
+        }
+        "GenericInstrumentation_call_timestamp_buf" => {
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallTimestampBuf
+        }
+        _ => {
+            error!("Unspecified map_path filename: {}", filename);
+            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified
+        }
+    }
 }
 
 /// Defines the static properties of a BPF map.

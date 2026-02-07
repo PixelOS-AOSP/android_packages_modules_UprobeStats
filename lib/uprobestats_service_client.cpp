@@ -23,6 +23,7 @@
 #include <com_android_uprobestats_flags.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
+#include <statslog_uprobestats.h>
 
 #include <thread>
 
@@ -34,8 +35,17 @@ void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
   std::vector<uint8_t> config_vec(config, config + size);
 
   std::thread([config_vec = std::move(config_vec)]() {
-    ndk::SpAIBinder binder = ndk::SpAIBinder(
-        AServiceManager_waitForService(kUprobeStatsServiceName));
+    auto log_startup_error = []() {
+      android::uprobestats::stats::stats_write(
+          android::uprobestats::stats::UPROBE_STATS_INTERNAL_ERROR,
+          android::uprobestats::stats::
+              UPROBE_STATS_INTERNAL_ERROR__ERROR_TYPE__ERROR_TYPE_SERVICE_STARTUP_FAILED,
+          0 /* task_id - not applicable here */
+        );
+    };
+
+    ndk::SpAIBinder binder =
+        ndk::SpAIBinder(AServiceManager_waitForService(kUprobeStatsServiceName));
     // TODO(b/480959242): Remove this fallback once SDK 37 is available.
     if (binder == nullptr) {
       LOG(WARNING) << "Failed to get uprobestats service, falling back to file "
@@ -47,18 +57,21 @@ void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
           filename);
       chmod(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
       android::base::SetProperty("ctl.start", "uprobestats");
+      log_startup_error();
       return;
     }
 
     auto service = IUprobeStatsService::fromBinder(binder);
     if (!service) {
       LOG(ERROR) << "Failed to get uprobestats service from binder";
+      log_startup_error();
       return;
     }
 
     auto status = service->startTasks(config_vec);
     if (!status.isOk()) {
       LOG(ERROR) << "Failed to start uprobestats: " << status.getMessage();
+      log_startup_error();
     }
   }).detach();
 }

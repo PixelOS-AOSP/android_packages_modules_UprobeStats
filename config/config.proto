@@ -88,6 +88,8 @@ message UprobestatsConfig {
 
     optional TargetProcessSelection target_process_selection = 6;
 
+    optional int64 task_id = 7;
+
     message BinderTransactionFilter {
       optional string interface_name = 1;
       repeated int64 method_ids = 2;
