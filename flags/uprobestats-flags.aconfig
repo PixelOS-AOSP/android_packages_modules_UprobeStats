@@ -8,14 +8,4 @@ flag {
     description: "Whether to enable instrumentation of a11y services self-granting runtime permission"
     bug: "427180586"
 }
-
-flag {
-    name: "uprobestats_service"
-    namespace: "responsible_apis"
-    description: "Whether to run the uprobestats daemon as a binder service, instead of a process that is just started via setting a `ctl.start` property"
-    bug: "471001249"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
 # keep-sorted end
