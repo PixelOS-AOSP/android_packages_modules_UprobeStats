@@ -1,5 +1,6 @@
 //! Bindings for AStatsEvent NDK API.
 use anyhow::{bail, Result};
+use log::warn;
 use statssocket_bindgen::{
     AStatsEvent as AStatsEvent_raw, AStatsEvent_addBoolAnnotation, AStatsEvent_obtain,
     AStatsEvent_release, AStatsEvent_setAtomId, AStatsEvent_write, AStatsEvent_writeBool,
@@ -83,9 +84,12 @@ impl AStatsEvent {
     pub fn write(mut self) -> Result<()> {
         // SAFETY: `self` is an owned reference to a non-null `AStatsEvent_raw`.
         let res = unsafe { AStatsEvent_write(self.as_ptr()) };
-        if res != 0 {
+        if res < 0 {
             bail!("Failed to write event. Error code: {res}")
         } else {
+            if res == 0 {
+                warn!("Received 0 from AStatsEvent_write - atom may not be in use, or process is rate limited.");
+            }
             Ok(())
         }
     }
