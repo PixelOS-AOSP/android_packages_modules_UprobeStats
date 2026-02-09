@@ -92,25 +92,25 @@ fn get_map_path_enum(map_path: &str) -> statslog_uprobestats::uprobe_stats_bpf_m
         return statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified;
     };
     match filename {
-        "Accessibility_output_buf" => {
+        "map_Accessibility_output_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathAccessibilityOutputBuf
         }
-        "Binder_output_buf" => {
+        "map_Binder_output_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBinderOutputBuf
         }
-        "BitmapAllocation_output" => {
+        "map_BitmapAllocation_output" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBitmapAllocationOutput
         }
-        "DisruptiveApp_bind_service_locked_output_buf" => {
+        "map_DisruptiveApp_BindServiceLocked_output_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
         }
-        "DisruptiveApp_component_enabled_setting_output_buf" => {
+        "map_DisruptiveApp_ComponentEnabledSetting_output_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
         }
-        "GenericInstrumentation_call_detail_buf" => {
+        "map_GenericInstrumentation_call_detail_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallDetailBuf
         }
-        "GenericInstrumentation_call_timestamp_buf" => {
+        "map_GenericInstrumentation_call_timestamp_buf" => {
             statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallTimestampBuf
         }
         _ => {
