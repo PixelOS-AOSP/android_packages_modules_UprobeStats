@@ -133,37 +133,8 @@ inline int bpfFdGet(const char* pathname, uint32_t flag) {
 
 int bpfGetFdMapId(const BPF_FD_TYPE map_fd);
 
-inline int bpfLock(int fd, short type) {
-    if (fd < 0) return fd;  // pass any errors straight through
-#ifdef BPF_MAP_LOCKLESS_FOR_TEST
+inline int bpfLock(int fd, short /* type */) {
     return fd;
-#endif
-#ifdef BPF_FD_JUST_USE_INT
-    int mapId = bpfGetFdMapId(fd);
-    int saved_errno = errno;
-#else
-    base::unique_fd ufd(fd);
-    int mapId = bpfGetFdMapId(ufd);
-    int saved_errno = errno;
-    (void)ufd.release();
-#endif
-    // 4.14+ required to fetch map id, but we don't want to call isAtLeastKernelVersion
-    if (mapId == -1 && saved_errno == EINVAL) return fd;
-    if (mapId <= 0) abort();  // should not be possible
-
-    // on __LP64__ (aka. 64-bit userspace) 'struct flock64' is the same as 'struct flock'
-    struct flock64 fl = {
-        .l_type = type,        // short: F_{RD,WR,UN}LCK
-        .l_whence = SEEK_SET,  // short: SEEK_{SET,CUR,END}
-        .l_start = mapId,      // off_t: start offset
-        .l_len = 1,            // off_t: number of bytes
-    };
-
-    // see: bionic/libc/bionic/fcntl.cpp: iff !__LP64__ this uses fcntl64
-    int ret = fcntl(fd, F_OFD_SETLK, &fl);
-    if (!ret) return fd;  // success
-    close(fd);
-    return ret;  // most likely -1 with errno == EAGAIN, due to already held lock
 }
 
 inline int mapRetrieveLocklessRW(const char* pathname) {
