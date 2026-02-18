@@ -6,7 +6,7 @@ use crate::{
     offsets::OffsetResolverImpl,
     process::ProcessResolverImpl,
 };
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{anyhow, bail, Result};
 #[cfg(feature = "binder-service")]
 use binder::LazyServiceGuard;
 use log::{debug, error, trace};
@@ -18,12 +18,8 @@ use std::{
     thread,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
-use uprobestats_core::{
-    config_resolver::{
-        read_config_from_bytes, resolve_single_task, BinderTransactionFilter, ResolvedProbe,
-        ResolvedTask,
-    },
-    guardrail,
+use uprobestats_core::config_resolver::{
+    self, BinderTransactionFilter, ConfigError, ResolvedProbe, ResolvedTask,
 };
 
 /// The global state for the uprobestats daemon process.
@@ -58,16 +54,13 @@ impl ActiveState {
 /// - resolves the BPF probes to be attached
 ///
 /// Returns the task and the probes that were resolved.
-pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask> {
-    let config = read_config_from_bytes(config_bytes)?;
-    ensure!(
-        guardrail::is_allowed(&config, is_user_build(), true)?,
-        "uprobestats probing config disallowed on this device"
-    );
-
-    let task = resolve_single_task(config, &ProcessResolverImpl {}, &OffsetResolverImpl {})?;
-
-    Ok(task)
+pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask, ConfigError> {
+    config_resolver::resolve_config(
+        config_bytes,
+        is_user_build(),
+        &ProcessResolverImpl {},
+        &OffsetResolverImpl {},
+    )
 }
 
 /// Step 2: checks for conflicts with other tasks, and updates the global state accordingly.
