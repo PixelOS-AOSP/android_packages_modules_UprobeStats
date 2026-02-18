@@ -9,6 +9,8 @@ pub mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;
+/// Binder transaction handlers
+pub mod binder_transaction;
 /// Bitmap allocation handlers
 pub mod bitmap_allocation;
 #[cfg(feature = "bridge-service")]

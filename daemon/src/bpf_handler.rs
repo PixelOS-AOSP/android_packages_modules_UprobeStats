@@ -1,6 +1,5 @@
 //! Deals with fetching data BPF ring buffers ("maps").
 use crate::atom::CodegenAtomWriter;
-use crate::bpf_handler::binder_transaction::BinderTransactionHandler;
 #[cfg(feature = "bridge-service")]
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 #[cfg(feature = "bridge-service")]
@@ -24,6 +23,7 @@ use uprobestats_core::bpf_handler::process_management::{
 #[cfg(feature = "bridge-service")]
 use uprobestats_core::bpf_handler::{
     accessibility::AccessibilityHandler,
+    binder_transaction::BinderTransactionHandler,
     disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler},
 };
 use uprobestats_core::{
@@ -31,9 +31,6 @@ use uprobestats_core::{
     config_resolver::ResolvedTask,
     timer::Timer,
 };
-
-/// Contains handlers and map writers for Binder transaction-related BPF maps.
-pub mod binder_transaction;
 
 /// Polls the given map_path based on the existing registry of handlers.
 pub fn poll_registry(map_path: &str, task: &ResolvedTask, duration: Duration) -> Result<()> {
@@ -142,7 +139,7 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
         register_handler::<BitmapAllocationHandlerV0<CodegenAtomWriter>>(&mut map);
     }
     if uprobestats_mainline_flags_rust::enable_binder_transaction() {
-        register_handler::<BinderTransactionHandler>(&mut map);
+        register_handler::<BinderTransactionHandler<AStatsEventWriter>>(&mut map);
     }
     register_handler::<CallTimestampHandler<AStatsEventWriter>>(&mut map);
     register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);
