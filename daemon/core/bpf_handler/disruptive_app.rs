@@ -297,7 +297,7 @@ mod test {
     use crate::{
         atom::{test::TestAtomWriter, CodegenAtom},
         bridge_service::test::TestUprobeStatsBridgeService,
-        config_resolver::ResolvedTask,
+        config_resolver::{ResolvedProcess, ResolvedTask},
         device_properties::test::TestDeviceProperties,
     };
     use anyhow::Result;
@@ -305,8 +305,8 @@ mod test {
     use std::collections::HashSet;
     use std::ffi::c_long;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::IUprobeStatsBridgeService::MockIUprobeStatsBridgeService;
-    use uprobestats_proto::config::uprobestats_config::Task;
     use zerocopy::FromBytes;
 
     fn setup_component_handler(
@@ -328,13 +328,12 @@ mod test {
             device_properties,
         };
         let task = ResolvedTask {
-            task: Task::new(),
-            pid: 0,
-            uid: 0,
-            process_name: "".to_string(),
-            duration_seconds: 0,
+            id: 1,
+            duration: Duration::from_secs(0),
+            resolved_process: ResolvedProcess { pid: 0, uid: 0, name: "".to_string() },
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
+            statsd_logging_config: None,
         };
         (handler, task)
     }
@@ -358,13 +357,12 @@ mod test {
             device_properties,
         };
         let task = ResolvedTask {
-            task: Task::new(),
-            pid: 0,
-            uid: 0,
-            process_name: "".to_string(),
-            duration_seconds: 0,
+            id: 1,
+            duration: Duration::from_secs(0),
+            resolved_process: ResolvedProcess { pid: 0, uid: 0, name: "".to_string() },
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
+            statsd_logging_config: None,
         };
         (handler, task)
     }

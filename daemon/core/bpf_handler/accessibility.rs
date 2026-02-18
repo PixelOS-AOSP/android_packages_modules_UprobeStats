@@ -284,17 +284,18 @@ impl AccessibilityRuntimePermissionGrant {
 mod test {
     use super::*;
     use crate::{
-        atom::test::TestAtomWriter, bridge_service::test::TestUprobeStatsBridgeService,
-        config_resolver::ResolvedTask,
+        atom::test::TestAtomWriter,
+        bridge_service::test::TestUprobeStatsBridgeService,
+        config_resolver::{ResolvedProcess, ResolvedTask},
     };
     use binder::Status;
     use mockall::predicate::*;
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use uprobestats_bridge_service_aidl::aidl::com::android::uprobestats::{
         self, IUprobeStatsBridgeService::MockIUprobeStatsBridgeService,
     };
-    use uprobestats_proto::config::uprobestats_config::Task;
     use zerocopy::FromBytes;
 
     const TEST_PACKAGE_NAME: &str = "pkg.name";
@@ -315,13 +316,16 @@ mod test {
             bridge_service: test_bridge,
         };
         let task = ResolvedTask {
-            task: Task::new(),
-            pid: 0,
-            uid: TEST_UID,
-            process_name: TEST_PACKAGE_NAME.to_string(),
-            duration_seconds: 0,
+            id: 1,
+            duration: Duration::from_secs(0),
+            resolved_process: ResolvedProcess {
+                pid: 0,
+                uid: TEST_UID,
+                name: TEST_PACKAGE_NAME.to_string(),
+            },
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
+            statsd_logging_config: None,
         };
         (handler, task)
     }
