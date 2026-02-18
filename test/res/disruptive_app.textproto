@@ -33,5 +33,5 @@ tasks {
         "map_DisruptiveApp_BindServiceLocked_output_buf"
     ]
     target_process_name: "system_server"
-    duration_seconds: 60
+    duration_seconds: 5
 }

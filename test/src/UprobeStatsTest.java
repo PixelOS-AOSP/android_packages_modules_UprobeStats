@@ -20,42 +20,32 @@ import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSA
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
-
+import static com.android.uprobestats.UprobeStatsBpfAttached.BpfProgram;
+import static com.android.uprobestats.UprobeStatsBpfMapPolled.BpfMapPath;
 import static com.google.common.truth.Truth.assertThat;
-
 import static org.junit.Assume.assumeTrue;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
-import android.cts.statsdatom.lib.ReportUtils;
-
-import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.host.HostFlagsValueProvider;
-
 import com.android.compatibility.common.util.CpuFeatures;
-import com.android.os.StatsLog;
 import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
-
 import java.util.List;
-
-import org.junit.Ignore;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.Rule;
 import org.junit.Test;
-import java.util.stream.Stream;
-import java.util.stream.Collectors;
-import java.util.concurrent.TimeUnit;
 import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class UprobeStatsTest extends BaseHostJUnit4Test {
 
-    private static final String BATTERY_STATS_CONFIG_OATDUMP =
-            "test_bss_setBatteryState_oatdump.textproto";
     private static final String BATTERY_STATS_CONFIG_ART =
             "test_bss_setBatteryState_artApi.textproto";
     private static final String TEMP_ALLOWLIST_CONFIG =
@@ -97,13 +87,11 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isEqualTo(1);
         TestUprobeStatsAtomReported reported =
-                data.get(0)
-                        .getAtom()
-                        .getExtension(UprobestatsExtensionAtoms.testUprobestatsAtomReported);
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
+                        .findFirst()
+                        .get();
         assertThat(reported.getFirstField()).isEqualTo(1);
         assertThat(reported.getSecondField()).isGreaterThan(0);
         assertThat(reported.getThirdField()).isEqualTo(0);
@@ -123,22 +111,9 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isGreaterThan(0);
         boolean anyMatch =
-                data.stream()
-                        .map(StatsLog.EventMetricData::getAtom)
-                        .filter(
-                                atom ->
-                                        atom.hasExtension(
-                                                FrameworkExtensionAtoms
-                                                        .deviceIdleTempAllowlistUpdated))
-                        .map(
-                                atom ->
-                                        atom.getExtension(
-                                                FrameworkExtensionAtoms
-                                                        .deviceIdleTempAllowlistUpdated))
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(FrameworkExtensionAtoms.deviceIdleTempAllowlistUpdated)
                         .anyMatch(reported -> reported.getReason().equals("shell"));
         assertThat(anyMatch).isTrue();
     }
@@ -172,23 +147,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             mUprobeStatsTestRule.waitForUprobeStatsToExit(95, TimeUnit.SECONDS);
 
             // See if the atom made it
-            List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(
-                            getDevice(), mUprobeStatsTestRule.getRegistry());
-            assertThat(data.size()).isGreaterThan(0);
             boolean anyMatch =
-                    data.stream()
-                            .map(StatsLog.EventMetricData::getAtom)
-                            .filter(
-                                    atom ->
-                                            atom.hasExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocated))
-                            .map(
-                                    atom ->
-                                            atom.getExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocated))
+                    mUprobeStatsTestRule
+                            .getExtensionAtoms(
+                                    UprobestatsExtensionAtoms.androidGraphicsBitmapAllocated)
                             .anyMatch(
                                     reported ->
                                             reported.getWidth() == 100
@@ -196,6 +158,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                                                     && reported.getUid() == uid);
             assertThat(anyMatch).isTrue();
         }
+
+        mUprobeStatsTestRule.assertSelfMetricsReported(
+                BpfProgram.PROG_BITMAP_ALLOCATION_UPROBE_BITMAP_CREATION_FOR_SNAPSHOT,
+                BpfMapPath.BPF_MAP_PATH_BITMAP_ALLOCATION_OUTPUT);
     }
 
     @Test
@@ -230,23 +196,11 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             mUprobeStatsTestRule.waitForUprobeStatsToExit(95, TimeUnit.SECONDS);
 
             // See if the atom made it
-            List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(
-                            getDevice(), mUprobeStatsTestRule.getRegistry());
-            assertThat(data.size()).isGreaterThan(0);
             Stream<AndroidGraphicsBitmapAllocationSnapshot> randomSampleSnapshot =
-                    data.stream()
-                            .map(StatsLog.EventMetricData::getAtom)
-                            .filter(
-                                    atom ->
-                                            atom.hasExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocationSnapshot))
-                            .map(
-                                    atom ->
-                                            atom.getExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocationSnapshot))
+                    mUprobeStatsTestRule
+                            .getExtensionAtoms(
+                                    UprobestatsExtensionAtoms
+                                            .androidGraphicsBitmapAllocationSnapshot)
                             .filter(
                                     reported ->
                                             reported.getSnapshotType()
@@ -263,18 +217,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                                     .count())
                     .isEqualTo(1);
             List<AndroidGraphicsBitmapAllocationSnapshot> maxAllocationSizeSnapshot =
-                    data.stream()
-                            .map(StatsLog.EventMetricData::getAtom)
-                            .filter(
-                                    atom ->
-                                            atom.hasExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocationSnapshot))
-                            .map(
-                                    atom ->
-                                            atom.getExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapAllocationSnapshot))
+                    mUprobeStatsTestRule
+                            .getExtensionAtoms(
+                                    UprobestatsExtensionAtoms
+                                            .androidGraphicsBitmapAllocationSnapshot)
                             .filter(
                                     reported ->
                                             reported.getSnapshotType()
@@ -327,23 +273,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             mUprobeStatsTestRule.waitForUprobeStatsToExit(95, TimeUnit.SECONDS);
 
             // See if the atom made it
-            List<StatsLog.EventMetricData> data =
-                    ReportUtils.getEventMetricDataList(
-                            getDevice(), mUprobeStatsTestRule.getRegistry());
-            assertThat(data.size()).isGreaterThan(0);
             boolean anyMatch =
-                    data.stream()
-                            .map(StatsLog.EventMetricData::getAtom)
-                            .filter(
-                                    atom ->
-                                            atom.hasExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapScaled))
-                            .map(
-                                    atom ->
-                                            atom.getExtension(
-                                                    UprobestatsExtensionAtoms
-                                                            .androidGraphicsBitmapScaled))
+                    mUprobeStatsTestRule
+                            .getExtensionAtoms(
+                                    UprobestatsExtensionAtoms.androidGraphicsBitmapScaled)
                             .anyMatch(
                                     reported ->
                                             reported.getScaledWidth() == 321
@@ -373,14 +306,15 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isGreaterThan(0);
-
         TestUprobeStatsAtomReported reported =
-                data.get(0)
-                        .getAtom()
-                        .getExtension(UprobestatsExtensionAtoms.testUprobestatsAtomReported);
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
+                        .findFirst()
+                        .get();
         assertThat(reported.getFirstField()).isGreaterThan(0);
+
+        mUprobeStatsTestRule.assertSelfMetricsReported(
+                BpfProgram.PROG_BINDER_UPROBE_EXEC_TRANSACT_INTERNAL,
+                BpfMapPath.BPF_MAP_PATH_BINDER_OUTPUT_BUF);
     }
 }
