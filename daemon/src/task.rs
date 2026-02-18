@@ -1,10 +1,8 @@
 //! Core functions for managing the execution of uprobestats tasks.
 //! Functions should be called in the order documented.
 use crate::{
-    bpf_map::{binder_transaction::BinderInterfaceMapAccessor, poll_registry},
-    is_user_build,
-    offsets::OffsetResolverImpl,
-    process::ProcessResolverImpl,
+    bpf_handler::poll_registry, bpf_map::binder_transaction::BinderInterfaceMapAccessor,
+    is_user_build, offsets::OffsetResolverImpl, process::ProcessResolverImpl,
 };
 use anyhow::{anyhow, bail, Result};
 #[cfg(feature = "binder-service")]
