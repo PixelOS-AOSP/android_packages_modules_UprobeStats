@@ -3,8 +3,7 @@
 use crate::{
     bpf_map::{binder_transaction::BinderInterfaceMapAccessor, poll_registry},
     is_user_build,
-    offsets::OffsetResolverImpl,
-    process::ProcessResolverImpl,
+    resolver_impl::{OffsetResolverImpl, ProcessResolverImpl},
 };
 use anyhow::{anyhow, bail, ensure, Result};
 #[cfg(feature = "binder-service")]

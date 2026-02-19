@@ -1,10 +1,27 @@
+use crate::process::resolve_process;
 use anyhow::{anyhow, bail, Result};
 use binder::ExceptionCode;
 use dynamic_instrumentation_manager::{
     ExecutableMethodFileOffsets, MethodDescriptor, TargetProcess,
 };
 use std::{thread, time::Duration};
-use uprobestats_core::{config_resolver, config_resolver::OffsetResolver};
+use uprobestats_core::{
+    config_resolver,
+    config_resolver::{OffsetResolver, ProcessResolver, ResolvedProcess},
+};
+use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
+
+pub(crate) struct ProcessResolverImpl {}
+impl ProcessResolver for ProcessResolverImpl {
+    fn resolve_process(
+        &self,
+        process_name: Option<&str>,
+        target_process_selection: TargetProcessSelection,
+        timeout: Duration,
+    ) -> Result<ResolvedProcess> {
+        resolve_process(process_name, target_process_selection, timeout)
+    }
+}
 
 pub(crate) struct OffsetResolverImpl {}
 impl OffsetResolver for OffsetResolverImpl {

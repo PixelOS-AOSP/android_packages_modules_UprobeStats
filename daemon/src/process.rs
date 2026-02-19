@@ -12,35 +12,33 @@ use uprobestats_bpf::{bpf_perf_event_open, poll_ring_buf};
 use uprobestats_bpf_bindgen::ProcessChange;
 use uprobestats_core::string::bytes_as_str;
 use uprobestats_core::{
-    config_resolver::{prefix_bpf, ProcessResolver, ResolvedProcess},
+    config_resolver::{prefix_bpf, ResolvedProcess},
     timer::Timer,
 };
 use uprobestats_mainline_flags_rust as uprobestats_flags;
 use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
 
-pub(crate) struct ProcessResolverImpl;
-impl ProcessResolver for ProcessResolverImpl {
-    fn resolve_process(
-        &self,
-        target_process_name: Option<&str>,
-        target_process_selection: TargetProcessSelection,
-        duration: Duration,
-    ) -> Result<ResolvedProcess> {
-        trace!("resolve_process: process_name: {target_process_name:?} process_selection: {target_process_selection:?}");
-        match target_process_selection {
-            TargetProcessSelection::SPECIFIC_APP_PROCESS_ON_START => {
-                wait_for_app_start(target_process_name, duration)
-            }
-            TargetProcessSelection::ANY_APP_PROCESS_ON_START => wait_for_app_start(None, duration),
-            TargetProcessSelection::SPECIFIC_PROCESS_NAME | TargetProcessSelection::UNKNOWN => {
-                let process_name = target_process_name.ok_or(anyhow!(
-                    "Process name is required for selection type {:?}",
-                    target_process_selection
-                ))?;
-                let pid =
-                    get_pid(process_name).ok_or(anyhow!("Can't find pid for {}", process_name))?;
-                Ok(ResolvedProcess { pid, uid: 0, name: process_name.to_string() })
-            }
+pub(crate) fn resolve_process(
+    target_process_name: Option<&str>, // Make process name optional
+    target_process_selection: TargetProcessSelection,
+    duration: Duration,
+) -> Result<ResolvedProcess> {
+    trace!(
+        "resolve_process: process_name: {target_process_name:?} process_selection: {target_process_selection:?}"
+    );
+    match target_process_selection {
+        TargetProcessSelection::SPECIFIC_APP_PROCESS_ON_START => {
+            wait_for_app_start(target_process_name, duration)
+        }
+        TargetProcessSelection::ANY_APP_PROCESS_ON_START => wait_for_app_start(None, duration),
+        TargetProcessSelection::SPECIFIC_PROCESS_NAME | TargetProcessSelection::UNKNOWN => {
+            let process_name = target_process_name.ok_or(anyhow!(
+                "Process name is required for selection type {:?}",
+                target_process_selection
+            ))?;
+            let pid =
+                get_pid(process_name).ok_or(anyhow!("Can't find pid for {}", process_name))?;
+            Ok(ResolvedProcess { pid, uid: 0, name: process_name.to_string() })
         }
     }
 }

@@ -12,10 +12,32 @@ use uprobestats_proto::config::{
     UprobestatsConfig,
 };
 
-mod offsets;
-pub use offsets::{ExecutableMethodFileOffsets, MethodDescriptor, OffsetResolver, TargetProcess};
-mod process;
-pub use process::{ProcessResolver, ResolvedProcess};
+/// Resolved process information.
+#[derive(Clone, Debug)]
+pub struct ResolvedProcess {
+    /// PID
+    pub pid: i32,
+    /// UID
+    pub uid: i32,
+    /// Process name
+    pub name: String,
+}
+
+/// Validated probe proto + probe target's code filename and offset.
+#[derive(Clone, Debug)]
+pub struct ResolvedProbe {
+    /// The probe proto.
+    pub probe: ProbeConfig,
+    /// The filename of the code that contains the probe's method.
+    pub filename: String,
+    /// The offset of the probe's method in the code file.
+    pub offset: i32,
+    /// The expected method identifier for the probe's method.
+    /// Used to match up BPF results with the correct handler.
+    pub method_identifier: u64,
+    /// Absolute path to the bpf program.
+    pub bpf_program_path: String,
+}
 
 /// Validated task proto + probe target's pid.
 #[derive(Clone, Debug)]
@@ -36,20 +58,15 @@ pub struct ResolvedTask {
     pub resolved_probes: Vec<ResolvedProbe>,
 }
 
-/// Validated probe proto + probe target's code filename and offset.
-#[derive(Clone, Debug)]
-pub struct ResolvedProbe {
-    /// The probe proto.
-    pub probe: ProbeConfig,
-    /// The filename of the code that contains the probe's method.
-    pub filename: String,
-    /// The offset of the probe's method in the code file.
-    pub offset: i32,
-    /// The expected method identifier for the probe's method.
-    /// Used to match up BPF results with the correct handler.
-    pub method_identifier: u64,
-    /// Absolute path to the bpf program.
-    pub bpf_program_path: String,
+/// Implementations can get actuall process info off a device based on the supplied information.
+pub trait ProcessResolver {
+    /// Resolves the process metadata to a ResolvedProcess.
+    fn resolve_process(
+        &self,
+        process_name: Option<&str>,
+        target_process_selection: TargetProcessSelection,
+        timeout: Duration,
+    ) -> Result<ResolvedProcess>;
 }
 
 /// Validates a single task proto and enriches it with the information needed to attach
@@ -102,6 +119,44 @@ pub fn resolve_single_task(
         bpf_map_paths,
         resolved_probes,
     })
+}
+
+/// Implementations can get the offsets of an executable given the target process and method
+/// descriptor.
+pub trait OffsetResolver {
+    /// Resolves the offsets of an executable method.
+    fn resolve_offsets(
+        &self,
+        target_process: &TargetProcess,
+        method_descriptor: &MethodDescriptor,
+    ) -> Result<Option<ExecutableMethodFileOffsets>>;
+}
+
+/// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
+/// that crate here.
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct TargetProcess {
+    pub uid: u32,
+    pub pid: i32,
+    pub process_name: String,
+}
+
+/// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
+/// that crate here.
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct MethodDescriptor {
+    pub fully_qualified_class_name: String,
+    pub method_name: String,
+    pub fully_qualified_parameters: Vec<String>,
+}
+
+/// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
+/// that crate here.
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct ExecutableMethodFileOffsets {
+    pub container_path: String,
+    pub container_offset: u64,
+    pub method_offset: u64,
 }
 
 fn resolve_probes(
