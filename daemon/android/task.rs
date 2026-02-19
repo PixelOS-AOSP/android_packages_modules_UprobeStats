@@ -5,7 +5,6 @@ use crate::{
     is_user_build, offsets::OffsetResolverImpl, process::ProcessResolverImpl,
 };
 use anyhow::{anyhow, bail, Result};
-#[cfg(feature = "binder-service")]
 use binder::LazyServiceGuard;
 use log::{debug, error, trace};
 use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
@@ -29,7 +28,6 @@ pub type GlobalState = Option<ActiveState>;
 /// This is only set when there are tasks currently running.
 pub struct ActiveState {
     polled_bpf_maps: HashSet<String>,
-    #[cfg(feature = "binder-service")]
     _lazy_service_guard: LazyServiceGuard,
 }
 
@@ -38,11 +36,7 @@ impl ActiveState {
     ///
     /// Should only be called when there are no existing tasks running (as in, `GlobalState` is `None`)
     pub fn new(polled_bpf_maps: HashSet<String>) -> Self {
-        ActiveState {
-            polled_bpf_maps,
-            #[cfg(feature = "binder-service")]
-            _lazy_service_guard: LazyServiceGuard::new(),
-        }
+        ActiveState { polled_bpf_maps, _lazy_service_guard: LazyServiceGuard::new() }
     }
 }
 

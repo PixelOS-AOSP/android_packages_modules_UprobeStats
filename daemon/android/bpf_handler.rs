@@ -1,15 +1,12 @@
 //! Deals with fetching data BPF ring buffers ("maps").
 use crate::atom::CodegenAtomWriter;
-#[cfg(feature = "bridge-service")]
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
-#[cfg(feature = "bridge-service")]
 use crate::device_properties::DefaultDeviceProperties;
 use anyhow::{bail, Result};
 use log::{debug, error, trace};
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, sync::LazyLock, time::Duration};
 use uprobestats_bpf::poll_ring_buf;
-#[cfg(feature = "art-test")]
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
 use uprobestats_core::bpf_handler::bitmap_allocation::{
     BitmapAllocationHandlerV0, BitmapAllocationHandlerV1,
@@ -20,14 +17,13 @@ use uprobestats_core::bpf_handler::generic_instrumentation::{
 use uprobestats_core::bpf_handler::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
 };
-#[cfg(feature = "bridge-service")]
-use uprobestats_core::bpf_handler::{
-    accessibility::AccessibilityHandler,
-    binder_transaction::BinderTransactionHandler,
-    disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler},
-};
 use uprobestats_core::{
-    bpf_handler::{Handler, HandlerRegistry},
+    bpf_handler::{
+        accessibility::AccessibilityHandler,
+        binder_transaction::BinderTransactionHandler,
+        disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler},
+        Handler, HandlerRegistry,
+    },
     config_resolver::ResolvedTask,
     timer::Timer,
 };
@@ -117,14 +113,12 @@ fn register_handler<H: Handler + Default>(handler_registry: &mut HandlerRegistry
     handler_registry.insert(H::MAP_PATH, poll_loop_generic::<H>);
 }
 
-#[cfg(feature = "bridge-service")]
 type BindServiceLockedHandlerImpl = BindServiceLockedHandler<
     CodegenAtomWriter,
     DefaultUprobeStatsBridgeService,
     DefaultDeviceProperties,
 >;
 
-#[cfg(feature = "bridge-service")]
 type ComponentEnabledSettingHandlerImpl = ComponentEnabledSettingHandler<
     CodegenAtomWriter,
     DefaultUprobeStatsBridgeService,
@@ -138,16 +132,14 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     } else {
         register_handler::<BitmapAllocationHandlerV0<CodegenAtomWriter>>(&mut map);
     }
-    #[cfg(feature = "bridge-service")]
-    if uprobestats_mainline_flags_rust::enable_binder_transaction() {
-        register_handler::<BinderTransactionHandler<DefaultUprobeStatsBridgeService>>(&mut map);
-    }
     register_handler::<CallTimestampHandler<AStatsEventWriter>>(&mut map);
     register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);
     register_handler::<SetUidTempAllowlistStateRecordHandler<AStatsEventWriter>>(&mut map);
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler<AStatsEventWriter>>(&mut map);
-    #[cfg(feature = "bridge-service")]
-    {
+    if cfg!(feature = "bridge-service") {
+        if uprobestats_mainline_flags_rust::enable_binder_transaction() {
+            register_handler::<BinderTransactionHandler<DefaultUprobeStatsBridgeService>>(&mut map);
+        }
         if uprobestats_flags_rust::a11y_runtime_permission() {
             register_handler::<
                 AccessibilityHandler<AStatsEventWriter, DefaultUprobeStatsBridgeService>,
@@ -158,8 +150,7 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
             register_handler::<ComponentEnabledSettingHandlerImpl>(&mut map);
         }
     }
-    #[cfg(feature = "art-test")]
-    {
+    if cfg!(feature = "art-test") {
         register_handler::<JitHandler<AStatsEventWriter>>(&mut map);
         register_handler::<AotHandler<AStatsEventWriter>>(&mut map);
     }
