@@ -5,16 +5,11 @@ use std::clone::Clone;
 use std::collections::HashSet;
 use std::ffi::c_ulong;
 use std::time::Duration;
-use thiserror::Error;
 use uprobestats_proto::config::{
-    uprobestats_config::{
-        task::{ProbeConfig, StatsdLoggingConfig, TargetProcessSelection},
-        Task,
-    },
+    uprobestats_config::task::{ProbeConfig, StatsdLoggingConfig, TargetProcessSelection},
     UprobestatsConfig,
 };
 
-mod guardrail;
 mod offsets;
 pub use offsets::{ExecutableMethodFileOffsets, MethodDescriptor, OffsetResolver};
 mod process;
@@ -59,75 +54,22 @@ pub struct BinderTransactionFilter {
     pub method_ids: Vec<c_ulong>,
 }
 
-/// Wraps a config error with the task ID (for the majority case that we at least know the task ID)
-#[derive(Debug, Error)]
-pub enum ConfigError {
-    /// We were able to parse a single task from the config, but it failed validation.
-    #[error("Task {task_id}: {error}")]
-    TaskValidation {
-        /// The ID of the task that failed validation.
-        task_id: i64,
-        /// The error that occurred.
-        error: anyhow::Error,
-    },
-    /// We failed to parse the config from bytes, it didn't have a task, or some other unexpected error occurred.
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-}
-
-impl ConfigError {
-    /// Returns the task ID if this error is for a specific task, -1 otherwise.
-    pub fn task_id(&self) -> Option<i64> {
-        match self {
-            ConfigError::TaskValidation { task_id, .. } => Some(*task_id),
-            ConfigError::Other(_) => None,
-        }
-    }
-}
-
-/// Parses a byte array into a UprobestatsConfig proto, validates it, and resolves it into a
-/// ResolvedTask.
-pub fn resolve_config(
-    config_bytes: &[u8],
-    is_user_build: bool,
-    process_resolver: &impl ProcessResolver,
-    offset_resolver: &impl OffsetResolver,
-) -> Result<ResolvedTask, ConfigError> {
-    let config = read_config_from_bytes(config_bytes).map_err(ConfigError::Other)?;
-    if config.tasks.len() != 1 {
-        return Err(ConfigError::Other(anyhow!(
-            "Config must have exactly one task, got {}",
-            config.tasks.len()
-        )));
-    }
-
-    let task = &config.tasks[0];
-    let id = task.task_id.unwrap_or(0);
-
-    // Check guardrails.
-    // We assume offsets_api_enabled is true, as the daemon always uses the offsets API now.
-    let is_allowed = guardrail::is_allowed(&config, is_user_build, true)
-        .map_err(|e| ConfigError::TaskValidation { task_id: id, error: e })?;
-
-    if !is_allowed {
-        return Err(ConfigError::TaskValidation {
-            task_id: id,
-            error: anyhow!("uprobestats probing config disallowed on this device"),
-        });
-    }
-
-    resolve_single_task(task, id, process_resolver, offset_resolver)
-        .map_err(|e| ConfigError::TaskValidation { task_id: id, error: e })
-}
-
 /// Validates a single task proto and enriches it with the information needed to attach
 /// uprobes and consume their results.
-fn resolve_single_task(
-    task: &Task,
-    id: i64,
+pub fn resolve_single_task(
+    config: UprobestatsConfig,
     process_resolver: &impl ProcessResolver,
     offset_resolver: &impl OffsetResolver,
 ) -> Result<ResolvedTask> {
+    ensure!(
+        config.tasks.len() == 1,
+        "Config must have exactly one task, got {}",
+        config.tasks.len()
+    );
+    let task = &config.tasks[0];
+
+    let id = task.task_id.unwrap_or(0);
+
     let bpf_map_paths: Result<HashSet<String>> = task
         .bpf_maps
         .iter()
@@ -351,9 +293,9 @@ mod tests {
         };
         let mut task = Task::new();
         task.duration_seconds = Some(10);
+        let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
 
-        let resolved_task =
-            resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {}).unwrap();
+        let resolved_task = resolve_single_task(config, &resolver, &NoneOffsetResolver {}).unwrap();
         assert_eq!(resolved_task.resolved_process.pid, 123);
         assert_eq!(resolved_task.resolved_process.uid, 456);
         assert_eq!(resolved_task.resolved_process.name, "test_process");
@@ -365,12 +307,7 @@ mod tests {
             result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
         };
         let config = UprobestatsConfig::new(); // No tasks
-        let result = resolve_config(
-            &config.write_to_bytes().unwrap(),
-            false,
-            &resolver,
-            &NoneOffsetResolver {},
-        );
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -384,7 +321,8 @@ mod tests {
             result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
         };
         let task = Task::new(); // No duration
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Task duration is required"));
     }
@@ -394,7 +332,8 @@ mod tests {
         let resolver = MockProcessResolver { result: Err(anyhow!("process not found")) };
         let mut task = Task::new();
         task.duration_seconds = Some(10);
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("process not found"));
     }
@@ -410,12 +349,7 @@ mod tests {
         task2.duration_seconds = Some(20);
         let config = UprobestatsConfig { tasks: vec![task1, task2], ..Default::default() };
 
-        let result = resolve_config(
-            &config.write_to_bytes().unwrap(),
-            false,
-            &resolver,
-            &NoneOffsetResolver {},
-        );
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -430,7 +364,8 @@ mod tests {
         };
         let mut task = Task::new();
         task.duration_seconds = Some(0);
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("must be greater than 0"));
     }

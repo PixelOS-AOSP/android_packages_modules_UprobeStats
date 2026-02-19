@@ -45,8 +45,7 @@ impl IUprobeStatsService for UprobeStatsService {
                 Err(e) => {
                     if let Err(e) = uprobe_stats_internal_error::stats_write(
                         uprobe_stats_internal_error::ErrorType::ErrorTypeConfigParseFailed,
-                        // `None` means the error was not for a specific task. Write -1 to signify that.
-                        e.task_id().unwrap_or(-1),
+                        0,
                     ) {
                         error!("Failed to write uprobe_stats_internal_error atom for config parse failure: {e:?}");
                     };
