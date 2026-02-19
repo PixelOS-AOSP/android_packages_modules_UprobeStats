@@ -79,7 +79,7 @@ fn poll_loop_generic<H: Handler + Default>(
         path_enum,
         duration.as_millis().try_into()?,
         total_events,
-        task.task.task_id.unwrap_or(0),
+        task.id,
     ) {
         error!("Failed to write uprobe_stats_bpf_map_polled atom: {:?}", e);
     };

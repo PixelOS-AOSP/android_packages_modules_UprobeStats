@@ -60,7 +60,7 @@ impl IUprobeStatsService for UprobeStatsService {
                 if let Err(e) = task::update_polled_bpf_maps(&mut state, &task) {
                     if let Err(e) = uprobe_stats_internal_error::stats_write(
                         uprobe_stats_internal_error::ErrorType::ErrorTypeTaskConflict,
-                        task.task.task_id.unwrap_or(0),
+                        task.id,
                     ) {
                         error!("Failed to write uprobe_stats_internal_error atom for task conflict: {e:?}");
                     };

@@ -1,55 +1,57 @@
 //! Resolves UprobestatsConfig protos into a list of concrete probes to be attached.
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, bail, ensure, Result};
 use protobuf::Message;
 use std::clone::Clone;
 use std::collections::HashSet;
+use std::ffi::c_ulong;
 use std::time::Duration;
 use uprobestats_proto::config::{
-    uprobestats_config::{
-        task::{ProbeConfig, TargetProcessSelection},
-        Task,
-    },
+    uprobestats_config::task::{ProbeConfig, StatsdLoggingConfig, TargetProcessSelection},
     UprobestatsConfig,
 };
 
 mod offsets;
-pub use offsets::{ExecutableMethodFileOffsets, MethodDescriptor, OffsetResolver, TargetProcess};
+pub use offsets::{ExecutableMethodFileOffsets, MethodDescriptor, OffsetResolver};
 mod process;
 pub use process::{ProcessResolver, ResolvedProcess};
 
-/// Validated task proto + probe target's pid.
+/// Validated task configuration + resolved process.
 #[derive(Clone, Debug)]
 pub struct ResolvedTask {
-    /// The task proto.
-    pub task: Task,
+    /// Unique identifier for the task.
+    pub id: i64,
     /// The duration of the task in seconds.
-    pub duration_seconds: i32,
-    /// Name of the task's target process,
-    pub process_name: String,
-    /// The pid of the task's target process.
-    pub pid: i32,
-    /// The uid of the task's target process.
-    pub uid: i32,
+    pub duration: Duration,
+    /// The resolved target process info.
+    pub resolved_process: ResolvedProcess,
     /// The set of absolute bpf map paths used by the task.
     pub bpf_map_paths: HashSet<String>,
+    /// The statsd logging config for the task (if applicable)
+    pub statsd_logging_config: Option<StatsdLoggingConfig>,
     /// The individual probes for the task.
     pub resolved_probes: Vec<ResolvedProbe>,
 }
 
-/// Validated probe proto + probe target's code filename and offset.
+/// Validated probe configuration + resolved offsets.
 #[derive(Clone, Debug)]
 pub struct ResolvedProbe {
-    /// The probe proto.
-    pub probe: ProbeConfig,
-    /// The filename of the code that contains the probe's method.
-    pub filename: String,
-    /// The offset of the probe's method in the code file.
-    pub offset: i32,
-    /// The expected method identifier for the probe's method.
-    /// Used to match up BPF results with the correct handler.
-    pub method_identifier: u64,
+    /// The descriptor of the method being probed.
+    pub method_descriptor: MethodDescriptor,
+    /// The offsets of the method being probed.
+    pub offsets: ExecutableMethodFileOffsets,
     /// Absolute path to the bpf program.
     pub bpf_program_path: String,
+    /// Binder transaction filters (if applicable)
+    pub binder_transaction_filters: Vec<BinderTransactionFilter>,
+}
+
+/// Required when using generic binder txn uprobes - this specifies which transactions to filter for
+#[derive(Clone, Debug)]
+pub struct BinderTransactionFilter {
+    /// Binder interface name (non-empty)
+    pub interface_name: String,
+    /// Binder method IDs (non-empty))
+    pub method_ids: Vec<c_ulong>,
 }
 
 /// Validates a single task proto and enriches it with the information needed to attach
@@ -59,8 +61,14 @@ pub fn resolve_single_task(
     process_resolver: &impl ProcessResolver,
     offset_resolver: &impl OffsetResolver,
 ) -> Result<ResolvedTask> {
-    let mut tasks = config.tasks.into_iter();
-    let task = tasks.next().ok_or_else(|| anyhow!("No tasks found in config"))?;
+    ensure!(
+        config.tasks.len() == 1,
+        "Config must have exactly one task, got {}",
+        config.tasks.len()
+    );
+    let task = &config.tasks[0];
+
+    let id = task.task_id.unwrap_or(0);
 
     let bpf_map_paths: Result<HashSet<String>> = task
         .bpf_maps
@@ -78,6 +86,9 @@ pub fn resolve_single_task(
     if duration_seconds <= 0 {
         return Err(anyhow!("Task duration must be greater than 0"));
     }
+    let duration = Duration::from_secs(duration_seconds.try_into()?);
+
+    let statsd_logging_config = task.statsd_logging_config.clone().into_option();
 
     let target_process_selection = task
         .target_process_selection
@@ -87,19 +98,18 @@ pub fn resolve_single_task(
     let resolved_process = process_resolver.resolve_process(
         task.target_process_name.as_deref(), // Pass optional process name
         target_process_selection,
-        Duration::from_secs(duration_seconds.try_into()?),
+        duration,
     )?;
 
     let resolved_probes =
         resolve_probes(task.probe_configs.clone(), &resolved_process, offset_resolver)?;
 
     Ok(ResolvedTask {
-        duration_seconds,
-        task,
-        process_name: resolved_process.name,
-        pid: resolved_process.pid,
-        uid: resolved_process.uid,
+        id,
+        duration,
+        resolved_process,
         bpf_map_paths,
+        statsd_logging_config,
         resolved_probes,
     })
 }
@@ -115,8 +125,10 @@ fn resolve_probes(
             let bpf_name =
                 probe.bpf_name.as_ref().ok_or_else(|| anyhow!("bpf_name is required"))?;
             ensure!(is_bpf_file_enabled(bpf_name), "{} is disabled by flag", bpf_name);
-
             let bpf_program_path = prefix_bpf(bpf_name);
+
+            let binder_transaction_filters = resolve_binder_transaction_filters(&probe, bpf_name)?;
+
             let fully_qualified_class_name = probe
                 .fully_qualified_class_name
                 .clone()
@@ -124,40 +136,78 @@ fn resolve_probes(
             let method_name =
                 probe.method_name.clone().ok_or_else(|| anyhow!("method_name is required"))?;
             let fully_qualified_parameters = probe.fully_qualified_parameters.clone();
-
-            let offsets = resolver.resolve_offsets(
-                &TargetProcess {
-                    uid: resolved_process.uid.try_into()?,
-                    pid: resolved_process.pid,
-                    process_name: resolved_process.name.clone(),
-                },
-                &MethodDescriptor {
-                    fully_qualified_class_name: fully_qualified_class_name.clone(),
-                    method_name,
-                    fully_qualified_parameters,
-                },
-            )?;
-            let offsets = offsets.ok_or_else(|| {
-                anyhow!("Failed to get offsets for class: {fully_qualified_class_name}")
-            })?;
-            let offset: i32 = offsets
-                .method_offset
-                .try_into()
-                .map_err(|e| anyhow!("Failed to convert method offset to i32: {e}"))?;
-            let method_identifier = if offsets.container_path.ends_with("so") {
-                offsets.container_offset
-            } else {
-                offsets.container_offset + offsets.method_offset
+            let method_descriptor = MethodDescriptor {
+                fully_qualified_class_name,
+                method_name,
+                fully_qualified_parameters,
             };
+
+            let offsets = resolver.resolve_offsets(resolved_process, &method_descriptor)?;
+            let offsets = offsets.ok_or_else(|| {
+                anyhow!(
+                    "Failed to get offsets for class: {}, method: {}, params: {:?}",
+                    method_descriptor.fully_qualified_class_name,
+                    method_descriptor.method_name,
+                    method_descriptor.fully_qualified_parameters
+                )
+            })?;
+
             Ok(ResolvedProbe {
-                probe,
+                method_descriptor,
+                offsets,
                 bpf_program_path,
-                offset,
-                method_identifier,
-                filename: offsets.container_path,
+                binder_transaction_filters,
             })
         })
         .collect::<Result<Vec<_>>>()
+}
+
+const BINDER_BPF_PROGRAM_NAME: &str = "prog_Binder_uprobe_exec_transact_internal";
+fn resolve_binder_transaction_filters(
+    probe: &ProbeConfig,
+    bpf_name: &str,
+) -> Result<Vec<BinderTransactionFilter>> {
+    match bpf_name {
+        BINDER_BPF_PROGRAM_NAME => {
+            ensure!(
+                !probe.binder_transaction_filters.is_empty(),
+                "{BINDER_BPF_PROGRAM_NAME} requires at least one binder_transaction_filter",
+            );
+            probe
+                .binder_transaction_filters
+                .iter()
+                .map(|filter| {
+                    let Some(ref interface_name) = filter.interface_name else {
+                        bail!("binder_transaction_filter.interface_name is required");
+                    };
+                    ensure!(
+                        !interface_name.is_empty(),
+                        "binder_transaction_filter.interface_name must be non-empty"
+                    );
+                    let interface_name = interface_name.to_string();
+
+                    ensure!(
+                        !filter.method_ids.is_empty(),
+                        "binder_transaction_filter.method_ids is required"
+                    );
+                    let method_ids = filter
+                        .method_ids
+                        .iter()
+                        .map(|&id| Ok(id.try_into()?))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    Ok(BinderTransactionFilter { interface_name, method_ids })
+                })
+                .collect()
+        }
+        _ => {
+            ensure!(
+                probe.binder_transaction_filters.is_empty(),
+                "binder_transaction_filters is only supported for {BINDER_BPF_PROGRAM_NAME} but got {bpf_name}",
+            );
+            Ok(vec![])
+        }
+    }
 }
 
 /// Parses a byte array into a UprobestatsConfig proto.
@@ -198,7 +248,13 @@ pub fn prefix_bpf(path: &str) -> String {
 mod tests {
     use super::*;
     use protobuf::Message;
-    use uprobestats_proto::config::UprobestatsConfig;
+    use uprobestats_proto::config::{
+        uprobestats_config::{
+            task::{BinderTransactionFilter, ProbeConfig},
+            Task,
+        },
+        UprobestatsConfig,
+    };
 
     struct MockProcessResolver {
         result: Result<ResolvedProcess, anyhow::Error>,
@@ -223,7 +279,7 @@ mod tests {
     impl OffsetResolver for NoneOffsetResolver {
         fn resolve_offsets(
             &self,
-            _target_process: &TargetProcess,
+            _target_process: &ResolvedProcess,
             _method_descriptor: &MethodDescriptor,
         ) -> Result<Option<ExecutableMethodFileOffsets>> {
             Ok(None)
@@ -240,9 +296,9 @@ mod tests {
         let config = UprobestatsConfig { tasks: vec![task], ..Default::default() };
 
         let resolved_task = resolve_single_task(config, &resolver, &NoneOffsetResolver {}).unwrap();
-        assert_eq!(resolved_task.pid, 123);
-        assert_eq!(resolved_task.uid, 456);
-        assert_eq!(resolved_task.process_name, "test_process");
+        assert_eq!(resolved_task.resolved_process.pid, 123);
+        assert_eq!(resolved_task.resolved_process.uid, 456);
+        assert_eq!(resolved_task.resolved_process.name, "test_process");
     }
 
     #[test]
@@ -253,7 +309,10 @@ mod tests {
         let config = UprobestatsConfig::new(); // No tasks
         let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No tasks found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Config must have exactly one task, got 0"));
     }
 
     #[test]
@@ -290,8 +349,12 @@ mod tests {
         task2.duration_seconds = Some(20);
         let config = UprobestatsConfig { tasks: vec![task1, task2], ..Default::default() };
 
-        let resolved_task = resolve_single_task(config, &resolver, &NoneOffsetResolver {}).unwrap();
-        assert_eq!(resolved_task.duration_seconds, 10); // Check it's the first task
+        let result = resolve_single_task(config, &resolver, &NoneOffsetResolver {});
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Config must have exactly one task, got 2"));
     }
 
     #[test]
@@ -314,7 +377,7 @@ mod tests {
     impl OffsetResolver for MockOffsetResolver {
         fn resolve_offsets(
             &self,
-            _target_process: &TargetProcess,
+            _target_process: &ResolvedProcess,
             _method_descriptor: &MethodDescriptor,
         ) -> Result<Option<ExecutableMethodFileOffsets>> {
             match &self.result {
@@ -347,8 +410,8 @@ mod tests {
 
         let resolved_probes = resolve_probes(vec![probe], &resolved_process, &resolver).unwrap();
         assert_eq!(resolved_probes.len(), 1);
-        assert_eq!(resolved_probes[0].filename, "/path/to/file");
-        assert_eq!(resolved_probes[0].offset, 1234);
+        assert_eq!(resolved_probes[0].offsets.container_path, "/path/to/file");
+        assert_eq!(resolved_probes[0].offsets.method_offset, 1234);
     }
 
     #[test]
@@ -464,5 +527,65 @@ mod tests {
     #[test]
     fn read_config_from_bytes_empty() {
         assert_eq!(read_config_from_bytes(&[]).unwrap(), UprobestatsConfig::new());
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_success() {
+        let mut probe = ProbeConfig::new();
+        let mut filter = BinderTransactionFilter::new();
+        filter.interface_name = Some("test.interface".to_string());
+        filter.method_ids = vec![1, 2];
+        probe.binder_transaction_filters = vec![filter];
+
+        let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].interface_name, "test.interface");
+        assert_eq!(result[0].method_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_empty_filters_for_binder_bpf() {
+        let probe = ProbeConfig::new(); // No filters
+        let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("requires at least one binder_transaction_filter"));
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_with_filters_for_non_binder_bpf() {
+        let mut probe = ProbeConfig::new();
+        let mut filter = BinderTransactionFilter::new();
+        filter.interface_name = Some("test.interface".to_string());
+        probe.binder_transaction_filters = vec![filter];
+
+        let result = resolve_binder_transaction_filters(&probe, "other.bpf.o");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("binder_transaction_filters is only supported for"));
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_missing_interface_name() {
+        let mut probe = ProbeConfig::new();
+        let filter = BinderTransactionFilter::new();
+        // No interface name
+        probe.binder_transaction_filters = vec![filter];
+
+        let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("binder_transaction_filter.interface_name is required"));
+    }
+
+    #[test]
+    fn prefix_bpf_test() {
+        assert_eq!(prefix_bpf("my_map"), "/sys/fs/bpf/uprobestats/my_map");
     }
 }
