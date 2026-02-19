@@ -65,8 +65,8 @@ public class ArtTest extends BaseHostJUnit4Test {
             HostFlagsValueProvider.createCheckFlagsRule(this::getDevice);
 
     @Rule(order = 1)
-    public final UprobeStatsTestRule mUprobeStatsTestRule = new UprobeStatsTestRule(this::getDevice);
-
+    public final UprobeStatsTestRule mUprobeStatsTestRule =
+            new UprobeStatsTestRule(this::getDevice);
 
     // hash of the string "com.android.uprobestats.disruptive", which gets sent as a long to statsd
     static long COM_ANDROID_UPROBESTATS_DISRUPTIVE_PACKAGE_NAME_HASH = -576996686495794312L;
@@ -92,14 +92,11 @@ public class ArtTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isGreaterThan(0);
-
         TestUprobeStatsAtomReported reported =
-                data.get(0)
-                        .getAtom()
-                        .getExtension(UprobestatsExtensionAtoms.testUprobestatsAtomReported);
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
+                        .findFirst()
+                        .get();
         assertThat(reported.getFirstField()).isEqualTo(1);
         assertThat(reported.getSecondField()).isEqualTo(-2);
         assertThat(reported.getThirdField())
@@ -124,22 +121,9 @@ public class ArtTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        List<StatsLog.EventMetricData> data =
-                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
-        assertThat(data.size()).isGreaterThan(0);
         TestUprobeStatsAtomReported match =
-                data.stream()
-                        .map(StatsLog.EventMetricData::getAtom)
-                        .filter(
-                                atom ->
-                                        atom.hasExtension(
-                                                UprobestatsExtensionAtoms
-                                                        .testUprobestatsAtomReported))
-                        .map(
-                                atom ->
-                                        atom.getExtension(
-                                                UprobestatsExtensionAtoms
-                                                        .testUprobestatsAtomReported))
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
                         .findFirst()
                         .get();
         assertThat(match.getFirstField()).isEqualTo(1); // boolean true
