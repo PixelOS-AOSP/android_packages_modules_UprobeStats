@@ -51,3 +51,24 @@ rust_defaults {
         false: [],
     }),
 }
+
+rust_binary {
+    name: "uprobestats",
+    srcs: ["uprobestats.rs"],
+    defaults: [
+        "uprobestats_apex_defaults",
+        "uprobestats_features_defaults",
+        "uprobestats_flags_rustlibs_defaults",
+        "uprobestats_core_rustlibs_defaults",
+        "uprobestats_flags_rustlibs_defaults",
+    ],
+    prefer_rlib: true,
+    rustlibs: [
+        "libatrace_rust",
+        "libbinder_rs",
+        "librustutils",
+        "libstatslog_uprobestats_rs",
+        "libuprobestats_android",
+        "uprobestats-service-aidl-rust",
+    ],
+}
