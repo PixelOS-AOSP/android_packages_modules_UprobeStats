@@ -1,4 +1,3 @@
-use super::process::ResolvedProcess;
 use anyhow::Result;
 
 /// Implementations can get the offsets of an executable given the target process and method
@@ -7,9 +6,18 @@ pub trait OffsetResolver {
     /// Resolves the offsets of an executable method.
     fn resolve_offsets(
         &self,
-        target_process: &ResolvedProcess,
+        target_process: &TargetProcess,
         method_descriptor: &MethodDescriptor,
     ) -> Result<Option<ExecutableMethodFileOffsets>>;
+}
+
+/// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
+/// that crate here.
+#[allow(missing_docs)] // see dynamic_instrumentation_manager for doc comments
+pub struct TargetProcess {
+    pub uid: u32,
+    pub pid: i32,
+    pub process_name: String,
 }
 
 /// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on

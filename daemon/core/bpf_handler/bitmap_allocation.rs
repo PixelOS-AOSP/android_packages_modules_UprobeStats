@@ -29,7 +29,7 @@ unsafe impl<C: AtomWriter<CodegenAtom>> Handler for BitmapAllocationHandlerV0<C>
     fn on_item(&mut self, task: &ResolvedTask, data: &BitmapEvent) -> Result<()> {
         trace!("BitmapEvent from v0 handler: {data:?}");
         let atom = CodegenAtom::AndroidGraphicsBitmapAllocated {
-            uid: task.resolved_process.uid,
+            uid: task.uid,
             width: data.width.try_into()?,
             height: data.height.try_into()?,
         };
@@ -75,7 +75,7 @@ unsafe impl<C: AtomWriter<CodegenAtom>> Handler for BitmapAllocationHandlerV1<C>
         match data.type_ {
             K_BITMAP_EVENT_TYPE_ALLOCATION => {
                 let metadata = BitmapMetadata {
-                    uid: task.resolved_process.uid,
+                    uid: task.uid,
                     width: data.width.try_into()?,
                     height: data.height.try_into()?,
                     pixel_storage_type: data.pixel_storage_type.try_into()?,
@@ -107,7 +107,7 @@ unsafe impl<C: AtomWriter<CodegenAtom>> Handler for BitmapAllocationHandlerV1<C>
             }
             K_BITMAP_EVENT_TYPE_BITMAP_SCALED => {
                 let atom = CodegenAtom::AndroidGraphicsBitmapScaled {
-                    uid: task.resolved_process.uid,
+                    uid: task.uid,
                     width: data.width.try_into()?,
                     height: data.height.try_into()?,
                     scaled_width: data.scaled_width.try_into()?,
@@ -162,21 +162,19 @@ unsafe impl<C: AtomWriter<CodegenAtom>> Handler for BitmapAllocationHandlerV1<C>
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        atom::test::TestAtomWriter,
-        config_resolver::{ResolvedProcess, ResolvedTask},
-    };
+    use crate::atom::test::TestAtomWriter;
     use std::collections::HashSet;
-    use std::time::Duration;
+    use uprobestats_proto::config::uprobestats_config::Task;
 
     fn create_task(uid: i32) -> ResolvedTask {
         ResolvedTask {
-            id: 1,
-            duration: Duration::from_secs(0),
-            resolved_process: ResolvedProcess { pid: 0, uid, name: "".to_string() },
+            task: Task::new(),
+            pid: 0,
+            uid,
+            process_name: "".to_string(),
+            duration_seconds: 0,
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
-            statsd_logging_config: None,
         }
     }
 
