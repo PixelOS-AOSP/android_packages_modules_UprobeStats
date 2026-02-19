@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,6 @@ package com.android.uprobestats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
-import android.cts.statsdatom.lib.ReportUtils;
-
-import com.android.os.framework.FrameworkExtensionAtoms;
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.util.RunUtil;
-import com.google.protobuf.ExtensionRegistry;
-
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import com.android.internal.os.StatsdConfigProto;
 import com.android.internal.os.StatsdConfigProto.Alert;
@@ -51,48 +41,19 @@ import java.util.function.Supplier;
 
 import uprobestats.protos.Config.UprobestatsConfig;
 
-import java.util.function.Supplier;
-
-public class UprobeStatsTestRule implements TestRule {
-    private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
-    private static final String CONFIG_NAME = "config";
+/** Collection of utilities to set up statsd and start uprobestats for a test. */
+public class UprobeStatsTestSetup {
     private static final int APP_BREADCRUMB_REPORTED_MATCH_START_ID = 1;
     private static final int METRIC_ID = 8;
     private static final int ALERT_ID = 29754810;
     private static final int SUBSCRIPTION_ID = 29796753;
 
-    private Supplier<ITestDevice> mDeviceSupplier;
-    private ExtensionRegistry mRegistry;
-
-    public UprobeStatsTestRule(Supplier<ITestDevice> deviceSupplier) {
-        mDeviceSupplier = deviceSupplier;
-    }
-
-    public ExtensionRegistry getRegistry() {
-        return mRegistry;
-    }
-
-    public ITestDevice getDevice() {
-        return mDeviceSupplier.get();
-    }
-
-    @Override
-    public Statement apply(Statement base, Description description) {
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                initializeRegistry();
-                initializeUprobeStats();
-                base.evaluate();
-            }
-        };
-    }
-
     /**
      * Starts UprobeStats with the given config and configures statsd to collect the given atomIds.
      */
-    public void configureStatsDAndStartUprobeStats(
-            Class clazz, String textprotoFilename, int... atomIds) throws Exception {
+    public static void configureStatsDAndStartUprobeStats(
+            Class clazz, ITestDevice device, String textprotoFilename, int... atomIds)
+            throws Exception {
         // 1. Parse config from resources
         String textProto =
                 new Scanner(clazz.getResourceAsStream("/" + textprotoFilename), "UTF-8")
@@ -154,25 +115,21 @@ public class UprobeStatsTestRule implements TestRule {
                                 .setTriggerIfSumGt(0))
                 .addNoReportMetric(METRIC_ID);
 
-        ConfigUtils.uploadConfig(getDevice(), config);
+        ConfigUtils.uploadConfig(device, config);
 
         // 3. Start UprobeStats by triggering the alert
-        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        waitForUprobeStats(20, TimeUnit.SECONDS);
+        AtomTestUtils.sendAppBreadcrumbReportedAtom(device);
+        waitForUprobeStats(20, TimeUnit.SECONDS, device);
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
     }
 
     /** Waits for the uprobestats process to start */
-    public void waitForUprobeStats(long timeout, TimeUnit unit)
+    public static void waitForUprobeStats(long timeout, TimeUnit unit, ITestDevice device)
             throws TimeoutException, DeviceNotAvailableException {
         waitForCondition(
                 () -> {
                     try {
-                        return mDeviceSupplier
-                                        .get()
-                                        .executeShellCommand("pidof uprobestats")
-                                        .length()
-                                > 0;
+                        return device.executeShellCommand("pidof uprobestats").length() > 0;
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -182,12 +139,12 @@ public class UprobeStatsTestRule implements TestRule {
     }
 
     /** Waits for the uprobestats process to exit */
-    public void waitForUprobeStatsToExit(long timeout, TimeUnit unit)
+    public static void waitForUprobeStatsToExit(long timeout, TimeUnit unit, ITestDevice device)
             throws TimeoutException, DeviceNotAvailableException {
         waitForCondition(
                 () -> {
                     try {
-                        String pid = getDevice().executeShellCommand("pidof uprobestats");
+                        String pid = device.executeShellCommand("pidof uprobestats");
                         return pid.isEmpty() || !pid.trim().matches("\\d+");
                     } catch (DeviceNotAvailableException e) {
                         throw new RuntimeException(e);
@@ -198,7 +155,7 @@ public class UprobeStatsTestRule implements TestRule {
     }
 
     /** Waits for a certain condition to become true. */
-    public void waitForCondition(Supplier<Boolean> condition, long timeout, TimeUnit unit)
+    public static void waitForCondition(Supplier<Boolean> condition, long timeout, TimeUnit unit)
             throws TimeoutException {
         long startTime = System.currentTimeMillis();
         long timeoutMillis = unit.toMillis(timeout);
@@ -218,21 +175,5 @@ public class UprobeStatsTestRule implements TestRule {
 
             RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
         }
-    }
-
-    /** Initializes and then sets up the statsd extension registry */
-    private void initializeRegistry() throws Exception {
-        ConfigUtils.removeConfig(getDevice());
-        ReportUtils.clearReports(getDevice());
-        ExtensionRegistry registry = ExtensionRegistry.newInstance();
-        UprobestatsExtensionAtoms.registerAllExtensions(registry);
-        FrameworkExtensionAtoms.registerAllExtensions(registry);
-        mRegistry = registry;
-    }
-
-    private void initializeUprobeStats() throws Exception {
-        getDevice().deleteFile(CONFIG_DIR + CONFIG_NAME);
-        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-        getDevice().executeShellCommand("killall uprobestats");
     }
 }

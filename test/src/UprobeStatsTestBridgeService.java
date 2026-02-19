@@ -18,6 +18,8 @@ package com.android.uprobestats;
 
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
@@ -57,8 +59,9 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
     public void disruptiveAppActivity() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
 
-        mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
+        configureStatsDAndStartUprobeStats(
                 getClass(),
+                getDevice(),
                 TEST_MALWARE_SIGNAL_CONFIG,
                 UprobestatsExtensionAtoms.SET_COMPONENT_ENABLED_SETTING_REPORTED_FIELD_NUMBER,
                 UprobestatsExtensionAtoms.BIND_SERVICE_LOCKED_WITH_BAL_FLAGS_REPORTED_FIELD_NUMBER,

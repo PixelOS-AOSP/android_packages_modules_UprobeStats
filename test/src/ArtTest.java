@@ -16,9 +16,16 @@
 
 package com.android.uprobestats;
 
+import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSACTION;
+import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
+import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
+import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
+
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
@@ -78,8 +85,9 @@ public class ArtTest extends BaseHostJUnit4Test {
     public void fetchValuesFromRegistersAndStack_jit() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
 
-        mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
+        configureStatsDAndStartUprobeStats(
                 getClass(),
+                getDevice(),
                 JIT_CONFIG,
                 UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
 
@@ -113,8 +121,9 @@ public class ArtTest extends BaseHostJUnit4Test {
     @Test
     public void fetchValuesFromRegistersAndStack_aot() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
-        mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
+        configureStatsDAndStartUprobeStats(
                 getClass(),
+                getDevice(),
                 AOT_CONFIG,
                 UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
 

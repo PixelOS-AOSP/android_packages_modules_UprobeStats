@@ -16,6 +16,8 @@
 
 package com.android.uprobestats;
 
+import static com.android.uprobestats.UprobeStatsTestSetup.configureStatsDAndStartUprobeStats;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
@@ -24,7 +26,14 @@ import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
 
+import android.platform.test.annotations.RequiresFlagsDisabled;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.host.HostFlagsValueProvider;
+
+import com.android.compatibility.common.util.CpuFeatures;
 import com.android.os.StatsLog;
+import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
@@ -33,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,8 +68,8 @@ public class UprobeStatsManualTest extends BaseHostJUnit4Test {
             expectAtom = true;
             atomId = Integer.parseInt(atomIdStr);
         }
-        mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
-                getClass(), configName + ".textproto", atomId);
+        configureStatsDAndStartUprobeStats(
+                getClass(), getDevice(), configName + ".textproto", atomId);
 
         if (expectAtom) {
             String timeout = System.getenv("UPROBESTATS_TEST_TIMEOUT");
@@ -92,8 +102,8 @@ public class UprobeStatsManualTest extends BaseHostJUnit4Test {
         List<Thread> threads = new ArrayList<>();
         for (String configName : TEST_CONFIG_NAMES) {
             System.out.println("uprobestats: Starting config: " + configName);
-            mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
-                    getClass(), configName + ".textproto", 1217);
+            configureStatsDAndStartUprobeStats(
+                    getClass(), getDevice(), configName + ".textproto", 1217);
         }
     }
 }
