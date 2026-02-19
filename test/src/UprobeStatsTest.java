@@ -306,12 +306,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        TestUprobeStatsAtomReported reported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
-                        .findFirst()
-                        .get();
-        assertThat(reported.getFirstField()).isGreaterThan(0);
+        // TODO(b/413078491): use the test infra from UprobeStats/test/cts to assert that the
+        // correct events were enqueued to the event service (although a unit test does already
+        // check this, and the self metrics test that the bpf was successfully attached and produced
+        // events).
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
                 BpfProgram.PROG_BINDER_UPROBE_EXEC_TRANSACT_INTERNAL,

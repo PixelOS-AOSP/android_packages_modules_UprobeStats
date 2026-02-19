@@ -23,10 +23,11 @@ use uprobestats_core::bpf_handler::process_management::{
 #[cfg(feature = "bridge-service")]
 use uprobestats_core::bpf_handler::{
     accessibility::AccessibilityHandler,
+    binder_transaction::BinderTransactionHandler,
     disruptive_app::{BindServiceLockedHandler, ComponentEnabledSettingHandler},
 };
 use uprobestats_core::{
-    bpf_handler::{binder_transaction::BinderTransactionHandler, Handler, HandlerRegistry},
+    bpf_handler::{Handler, HandlerRegistry},
     config_resolver::ResolvedTask,
     timer::Timer,
 };
@@ -137,8 +138,9 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     } else {
         register_handler::<BitmapAllocationHandlerV0<CodegenAtomWriter>>(&mut map);
     }
+    #[cfg(feature = "bridge-service")]
     if uprobestats_mainline_flags_rust::enable_binder_transaction() {
-        register_handler::<BinderTransactionHandler<AStatsEventWriter>>(&mut map);
+        register_handler::<BinderTransactionHandler<DefaultUprobeStatsBridgeService>>(&mut map);
     }
     register_handler::<CallTimestampHandler<AStatsEventWriter>>(&mut map);
     register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);

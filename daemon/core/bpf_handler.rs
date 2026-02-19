@@ -9,6 +9,7 @@ pub mod accessibility;
 /// A module only for testing JIT integration.
 #[cfg(feature = "art-test")]
 pub mod art_test;
+#[cfg(feature = "bridge-service")]
 /// Binder transaction handlers
 pub mod binder_transaction;
 /// Bitmap allocation handlers
@@ -45,7 +46,7 @@ pub type HandlerRegistry = HashMap<&'static str, fn(&str, &ResolvedTask, Duratio
 
 #[cfg(feature = "bridge-service")]
 enum DynamicInstrumentationPayloadIds {
-    // BinderTransaction = 1,
+    BinderTransaction = 1,
     DisabledLauncherActivity = 2,
     BindAllowBackgroundActivityStarts = 3,
 }
