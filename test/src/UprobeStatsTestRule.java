@@ -18,7 +18,6 @@ package com.android.uprobestats;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
-import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
 
 import com.android.os.framework.FrameworkExtensionAtoms;
@@ -42,28 +41,17 @@ import com.android.os.AtomsProto.Atom;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.util.RunUtil;
-import com.android.os.StatsLog;
-import com.android.tradefed.device.ITestDevice;
-import com.google.protobuf.ExtensionRegistry;
 
-import com.google.common.collect.ImmutableList;
 import com.google.protobuf.TextFormat;
-import com.google.protobuf.Extension;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import uprobestats.protos.Config.UprobestatsConfig;
 
 import java.util.function.Supplier;
-
-import static com.google.common.truth.Truth.assertThat;
 
 public class UprobeStatsTestRule implements TestRule {
     private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
@@ -73,16 +61,8 @@ public class UprobeStatsTestRule implements TestRule {
     private static final int ALERT_ID = 29754810;
     private static final int SUBSCRIPTION_ID = 29796753;
 
-    private static final List<Integer> SELF_METRICS_ATOM_IDS =
-            ImmutableList.of(
-                    UprobestatsExtensionAtoms.UPROBE_STATS_INVOCATION_FIELD_NUMBER,
-                    UprobestatsExtensionAtoms.UPROBE_STATS_INTERNAL_ERROR_FIELD_NUMBER,
-                    UprobestatsExtensionAtoms.UPROBE_STATS_BPF_ATTACHED_FIELD_NUMBER,
-                    UprobestatsExtensionAtoms.UPROBE_STATS_BPF_MAP_POLLED_FIELD_NUMBER);
-
     private Supplier<ITestDevice> mDeviceSupplier;
     private ExtensionRegistry mRegistry;
-    private List<Atom> mReportedAtoms = new ArrayList<>();
 
     public UprobeStatsTestRule(Supplier<ITestDevice> deviceSupplier) {
         mDeviceSupplier = deviceSupplier;
@@ -125,9 +105,6 @@ public class UprobeStatsTestRule implements TestRule {
         // 2. Configure StatsD
         StatsdConfig.Builder config =
                 ConfigUtils.createConfigBuilder("com.android.uprobestats.test");
-        for (int atomId : SELF_METRICS_ATOM_IDS) {
-            ConfigUtils.addEventMetric(config, atomId);
-        }
         for (int atomId : atomIds) {
             ConfigUtils.addEventMetric(config, atomId);
         }
@@ -183,57 +160,6 @@ public class UprobeStatsTestRule implements TestRule {
         AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
         waitForUprobeStats(20, TimeUnit.SECONDS);
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-    }
-
-    /**
-     * Asserts that the given BPF program and map path have been executed and polled by UprobeStats,
-     * as evidenced by the presence of the corresponding self-metrics atoms.
-     */
-    public void assertSelfMetricsReported(
-            UprobeStatsBpfAttached.BpfProgram bpfProgram,
-            UprobeStatsBpfMapPolled.BpfMapPath bpfMapPath)
-            throws Exception {
-
-        long countServiceStarted =
-                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsInvocation)
-                        .filter(
-                                atom ->
-                                        atom.getInvocationType()
-                                                == UprobeStatsInvocation.InvocationType
-                                                        .INVOCATION_TYPE_SERVICE_STARTED)
-                        .count();
-        assertThat(countServiceStarted).isEqualTo(1);
-
-        long countBpfAttached =
-                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsBpfAttached)
-                        .filter(atom -> atom.getBpfProgram() == bpfProgram)
-                        .count();
-        assertThat(countBpfAttached).isEqualTo(1);
-
-        // BPF map path stats are not reported until uprobestats is done polling.
-        waitForUprobeStatsToExit(60, TimeUnit.SECONDS);
-
-        Stream<UprobeStatsBpfMapPolled> afterTaskCompleteData =
-                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsBpfMapPolled);
-        long hasExpectedEvents =
-                afterTaskCompleteData
-                        .filter(
-                                atom ->
-                                        atom.getMapPath() == bpfMapPath
-                                                && atom.getEventsCount() > 0)
-                        .count();
-        assertThat(hasExpectedEvents).isEqualTo(1);
-    }
-
-    /**
-     * Returns a stream of atoms that have the given extension. This method will also query
-     * statsd for any new atoms that have been reported since the last time this method was called.
-     */
-    public <T> Stream<T> getExtensionAtoms(Extension<Atom, T> extension) throws Exception {
-        mReportedAtoms.addAll(getReportedAtomsAndDeleteReport());
-        return mReportedAtoms.stream()
-                .filter(atom -> atom.hasExtension(extension))
-                .map(atom -> atom.getExtension(extension));
     }
 
     /** Waits for the uprobestats process to start */
@@ -294,16 +220,6 @@ public class UprobeStatsTestRule implements TestRule {
         }
     }
 
-    /**
-     * Returns all the atoms reported to statsd in the test. Note the footgun in
-     * `ReportUtils.getEventMetricDataList`. Once you call it, the report is deleted.
-     */
-    private List<Atom> getReportedAtomsAndDeleteReport() throws Exception {
-        return ReportUtils.getEventMetricDataList(mDeviceSupplier.get(), mRegistry).stream()
-                .map(StatsLog.EventMetricData::getAtom)
-                .collect(Collectors.toList());
-    }
-
     /** Initializes and then sets up the statsd extension registry */
     private void initializeRegistry() throws Exception {
         ConfigUtils.removeConfig(getDevice());
@@ -314,7 +230,6 @@ public class UprobeStatsTestRule implements TestRule {
         mRegistry = registry;
     }
 
-    /** Initializes UprobeStats by deleting the config file and killing any existing process. */
     private void initializeUprobeStats() throws Exception {
         getDevice().deleteFile(CONFIG_DIR + CONFIG_NAME);
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);

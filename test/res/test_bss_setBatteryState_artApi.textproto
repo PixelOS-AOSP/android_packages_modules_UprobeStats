@@ -10,7 +10,7 @@ tasks {
     }
     bpf_maps: "map_GenericInstrumentation_call_timestamp_buf"
     target_process_name: "system_server"
-    duration_seconds: 5
+    duration_seconds: 60
     statsd_logging_config {
         atom_id: 915
     }

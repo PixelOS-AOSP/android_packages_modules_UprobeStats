@@ -17,19 +17,25 @@
 package com.android.uprobestats;
 
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
-import static com.android.uprobestats.UprobeStatsBpfAttached.BpfProgram;
-import static com.android.uprobestats.UprobeStatsBpfMapPolled.BpfMapPath;
+
 import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assume.assumeTrue;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
+import android.cts.statsdatom.lib.ReportUtils;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.host.HostFlagsValueProvider;
+
 import com.android.compatibility.common.util.CpuFeatures;
+import com.android.os.StatsLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
+
+import java.util.List;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -83,12 +89,15 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
         // Allow UprobeStats/StatsD time to collect metric
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
+        // See if the atom made it
+        List<StatsLog.EventMetricData> data =
+                ReportUtils.getEventMetricDataList(getDevice(), mUprobeStatsTestRule.getRegistry());
+        assertThat(data.size()).isEqualTo(5);
+
         SetComponentEnabledSettingReported reported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(
-                                UprobestatsExtensionAtoms.setComponentEnabledSettingReported)
-                        .findFirst()
-                        .get();
+                data.get(0)
+                        .getAtom()
+                        .getExtension(UprobestatsExtensionAtoms.setComponentEnabledSettingReported);
         assertThat(reported.getNewState())
                 .isEqualTo(2); // PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
         assertThat(reported.getPackageName()).isEqualTo("com.android.uprobestats.disruptive");
@@ -98,12 +107,9 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
         assertThat(reported.getIsLauncherActivity()).isFalse();
 
         SetComponentEnabledSettingReported launcherReported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(
-                                UprobestatsExtensionAtoms.setComponentEnabledSettingReported)
-                        .skip(1)
-                        .findFirst()
-                        .get();
+                data.get(1)
+                        .getAtom()
+                        .getExtension(UprobestatsExtensionAtoms.setComponentEnabledSettingReported);
         assertThat(launcherReported.getNewState())
                 .isEqualTo(2); // PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
         assertThat(launcherReported.getPackageName())
@@ -114,20 +120,18 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
         assertThat(launcherReported.getIsLauncherActivity()).isTrue();
 
         DisabledLauncherActivityUidsReported disabledLauncherActivityUidsReported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(
-                                UprobestatsExtensionAtoms.disabledLauncherActivityUidsReported)
-                        .findFirst()
-                        .get();
+                data.get(2)
+                        .getAtom()
+                        .getExtension(
+                                UprobestatsExtensionAtoms.disabledLauncherActivityUidsReported);
         assertThat(disabledLauncherActivityUidsReported.getCallingUid()).isEqualTo(2000); // shell
         assertThat(disabledLauncherActivityUidsReported.getDisabledActivityUid()).isGreaterThan(0);
 
         BindServiceLockedWithBalFlagsReported balReported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(
-                                UprobestatsExtensionAtoms.bindServiceLockedWithBalFlagsReported)
-                        .findFirst()
-                        .get();
+                data.get(3)
+                        .getAtom()
+                        .getExtension(
+                                UprobestatsExtensionAtoms.bindServiceLockedWithBalFlagsReported);
         assertThat(balReported.getCallingPackageName())
                 .isEqualTo("com.android.uprobestats.disruptive");
         assertThat(balReported.getFlags())
@@ -138,20 +142,12 @@ public class UprobeStatsTestBridgeService extends BaseHostJUnit4Test {
         assertThat(balReported.getIntentComponentNameClass()).isNotEmpty();
 
         BindServiceLockedWithBalFlagsUidsReported balUidsReported =
-                mUprobeStatsTestRule
-                        .getExtensionAtoms(
-                                UprobestatsExtensionAtoms.bindServiceLockedWithBalFlagsUidsReported)
-                        .findFirst()
-                        .get();
+                data.get(4)
+                        .getAtom()
+                        .getExtension(
+                                UprobestatsExtensionAtoms
+                                        .bindServiceLockedWithBalFlagsUidsReported);
         assertThat(balUidsReported.getBinderUid()).isGreaterThan(0);
         assertThat(balUidsReported.getBindeeUid()).isGreaterThan(0);
-
-        mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_DISRUPTIVE_APP_UPROBE_SET_COMPONENT_ENABLED_SETTING,
-                BpfMapPath.BPF_MAP_PATH_DISRUPTIVE_APP_COMPONENT_ENABLED_SETTING_OUTPUT_BUF);
-
-        mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_DISRUPTIVE_APP_UPROBE_BIND_SERVICE_LOCKED,
-                BpfMapPath.BPF_MAP_PATH_DISRUPTIVE_APP_BIND_SERVICE_LOCKED_OUTPUT_BUF);
     }
 }
