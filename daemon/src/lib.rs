@@ -1,5 +1,6 @@
 //! UprobeStats library
 mod atom;
+pub mod bpf_handler;
 pub mod bpf_map;
 #[cfg(feature = "bridge-service")]
 mod bridge_service;
