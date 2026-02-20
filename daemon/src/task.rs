@@ -1,27 +1,23 @@
 //! Core functions for managing the execution of uprobestats tasks.
 //! Functions should be called in the order documented.
 use crate::{
-    bpf_map::{binder_transaction::BinderInterfaceMapAccessor, poll_registry},
-    is_user_build,
-    resolver_impl::{OffsetResolverImpl, ProcessResolverImpl},
+    bpf_handler::poll_registry, bpf_map::binder_transaction::BinderInterfaceMapAccessor,
+    is_user_build, offsets::OffsetResolverImpl, process::ProcessResolverImpl,
 };
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{anyhow, bail, Result};
 #[cfg(feature = "binder-service")]
 use binder::LazyServiceGuard;
 use log::{debug, error, trace};
 use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
 use std::{
     collections::HashSet,
-    ffi::c_ulong,
     os::fd::{AsRawFd, OwnedFd},
     sync::MutexGuard,
     thread,
-    time::Duration,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
-use uprobestats_core::{
-    config_resolver::{read_config_from_bytes, resolve_single_task, ResolvedProbe, ResolvedTask},
-    guardrail,
+use uprobestats_core::config_resolver::{
+    self, BinderTransactionFilter, ConfigError, ResolvedProbe, ResolvedTask,
 };
 
 /// The global state for the uprobestats daemon process.
@@ -56,16 +52,13 @@ impl ActiveState {
 /// - resolves the BPF probes to be attached
 ///
 /// Returns the task and the probes that were resolved.
-pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask> {
-    let config = read_config_from_bytes(config_bytes)?;
-    ensure!(
-        guardrail::is_allowed(&config, is_user_build(), true)?,
-        "uprobestats probing config disallowed on this device"
-    );
-
-    let task = resolve_single_task(config, &ProcessResolverImpl {}, &OffsetResolverImpl {})?;
-
-    Ok(task)
+pub fn resolve_config(config_bytes: &[u8]) -> Result<ResolvedTask, ConfigError> {
+    config_resolver::resolve_config(
+        config_bytes,
+        is_user_build(),
+        &ProcessResolverImpl {},
+        &OffsetResolverImpl {},
+    )
 }
 
 /// Step 2: checks for conflicts with other tasks, and updates the global state accordingly.
@@ -107,18 +100,18 @@ pub fn execute(task: &ResolvedTask) {
             if let Err(e) = attach_probes_and_poll_maps(task) {
                 if let Err(e) = uprobe_stats_internal_error::stats_write(
                     uprobe_stats_internal_error::ErrorType::ErrorTypeTaskExecutionFailed,
-                    task.task.task_id.unwrap_or(0),
+                    task.id,
                 ) {
                     error!("Failed to write uprobe_stats_internal_error atom for task execution failure: {:?}", e);
                 };
                 error!("task execution failed: {e:?}");
             }
-            cleanup_binder_transaction_filters(map, task.task.task_id.unwrap_or(0));
+            cleanup_binder_transaction_filters(map, task.id);
         }
         Err(e) => {
             if let Err(e) = uprobe_stats_internal_error::stats_write(
                 uprobe_stats_internal_error::ErrorType::ErrorTypeBinderFilterSetupFailed,
-                task.task.task_id.unwrap_or(0),
+                task.id,
             ) {
                 error!("Failed to write uprobe_stats_internal_error atom for binder filter setup failure: {:?}", e);
             };
@@ -140,14 +133,14 @@ fn setup_binder_transaction_filters(
 ) -> Result<Option<BinderInterfaceMapAccessor>> {
     let mut maybe_binder_interface_bpf_map = None;
     for probe in probes {
-        if probe.bpf_program_path.contains(BINDER_BPF_PROGRAM_NAME) {
+        if !probe.binder_transaction_filters.is_empty() {
             let binder_interface_bpf_map = if let Some(map) = &mut maybe_binder_interface_bpf_map {
                 map
             } else {
                 maybe_binder_interface_bpf_map = Some(BinderInterfaceMapAccessor::new()?);
                 maybe_binder_interface_bpf_map.as_mut().unwrap()
             };
-            write_binder_transaction_filter_to_binder_bpf_map(probe, binder_interface_bpf_map)
+            write_binder_transaction_filter_to_binder_bpf_map(&probe.binder_transaction_filters, binder_interface_bpf_map)
                 .map_err(|e| {
                     // unwrap here, as if we've failed to write to the map *and* failed to drain it,
                     // something is horribly wrong.
@@ -161,29 +154,13 @@ fn setup_binder_transaction_filters(
     Ok(maybe_binder_interface_bpf_map)
 }
 
-const BINDER_BPF_PROGRAM_NAME: &str = "Binder_uprobe_exec_transact_internal";
 fn write_binder_transaction_filter_to_binder_bpf_map(
-    probe: &ResolvedProbe,
+    binder_transaction_filters: &[BinderTransactionFilter],
     binder_interface_bpf_map: &BinderInterfaceMapAccessor,
 ) -> Result<()> {
-    if probe.probe.binder_transaction_filters.is_empty() {
-        return Err(anyhow!("Binder transaction probe must have at least one filter"));
-    }
-    for binder_transaction_filter in &probe.probe.binder_transaction_filters {
-        let Some(ref interface_name) = binder_transaction_filter.interface_name else {
-            return Err(anyhow!("Binder transaction filter must have an interface name"));
-        };
-        if binder_transaction_filter.method_ids.is_empty() {
-            return Err(anyhow!("Binder transaction filter must have at least one method id"));
-        }
-        let codes: Vec<c_ulong> = binder_transaction_filter
-            .method_ids
-            .iter()
-            .map(|method_id| (*method_id).try_into())
-            .collect::<Result<Vec<_>, _>>()?;
-
-        binder_interface_bpf_map.put(interface_name, &codes, UpdateMapElemFlags::Insert)?;
-        trace!("wrote {interface_name}:{:?} to binder interface bpf map", codes);
+    for BinderTransactionFilter { interface_name, method_ids } in binder_transaction_filters {
+        binder_interface_bpf_map.put(interface_name, method_ids, UpdateMapElemFlags::Insert)?;
+        trace!("wrote {interface_name}:{:?} to binder interface bpf map", method_ids);
     }
     Ok(())
 }
@@ -240,43 +217,35 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
         .map(|probe| -> Result<OwnedFd> {
             debug!(
                 "attaching bpf {} to {} at {}",
-                probe.bpf_program_path, &probe.filename, &probe.offset
+                probe.bpf_program_path, &probe.offsets.container_path, &probe.offsets.method_offset
             );
             let fd = bpf_perf_event_open(
-                probe.filename.clone(),
-                probe.offset,
-                task.pid,
+                probe.offsets.container_path.clone(),
+                probe.offsets.method_offset.try_into()?,
+                task.resolved_process.pid,
                 probe.bpf_program_path.clone(),
             )?;
             if let Err(e) = uprobe_stats_bpf_attached::stats_write(
                 bpf_program_path_to_enum(&probe.bpf_program_path),
-                probe
-                    .probe
-                    .fully_qualified_class_name
-                    .as_deref()
-                    .expect("ResolvedProbe.probe.fully_qualified_class_name should be set"),
-                probe
-                    .probe
-                    .method_name
-                    .as_deref()
-                    .expect("ResolvedProbe.probe.method_name should be set"),
-                &task.process_name,
-                task.task.task_id.unwrap_or(0),
+                &probe.method_descriptor.fully_qualified_class_name,
+                &probe.method_descriptor.method_name,
+                &task.resolved_process.name,
+                task.id,
             ) {
                 error!("Failed to write uprobe_stats_bpf_attached atom: {:?}", e);
             }
             trace!(
                 "successfully attached bpf {} to {} at {}. fd: {}",
                 probe.bpf_program_path,
-                &probe.filename,
-                &probe.offset,
+                &probe.offsets.container_path,
+                &probe.offsets.method_offset,
                 fd.as_raw_fd(),
             );
             Ok(fd)
         })
         .collect::<Result<Vec<OwnedFd>>>()?;
 
-    let duration = Duration::from_secs(task.duration_seconds.try_into()?);
+    let duration = task.duration;
     let errors = thread::scope(|s| {
         let mut handles = vec![];
         for map_path in &task.bpf_map_paths {

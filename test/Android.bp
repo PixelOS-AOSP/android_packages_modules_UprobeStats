@@ -3,45 +3,41 @@ package {
     default_team: "trendy_team_system_performance",
 }
 
-filegroup {
-    name: "uprobestats-test-sources",
-    srcs: ["src/*.java"] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
-        true: ["src/binder_service/*.java"],
-        default: ["src/legacy/*.java"],
-    }),
-    exclude_srcs: ["src/ArtTest.java"] + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
-        true: [],
-        false: [
-            "src/UprobeStatsTestBridgeService.java",
-        ],
-    }),
+java_library_host {
+    name: "uprobestats-test-rule",
+    srcs: ["src/UprobeStatsTestRule.java"],
+    libs: ["tradefed"],
+    static_libs: [
+        "cts-statsd-atom-host-test-utils",
+        "uprobestats-protos",
+    ],
+}
+
+java_defaults {
+    name: "uprobestats-test-defaults",
+    libs: [
+        "tradefed",
+        "truth",
+    ],
+    static_libs: ["uprobestats-test-rule"],
+    java_resource_dirs: ["res"],
 }
 
 java_test_host {
     name: "uprobestats-test",
-    srcs: [":uprobestats-test-sources"],
-    java_resource_dirs: ["res"],
-    libs: [
-        "compatibility-host-util",
-        "core_cts_test_resources",
-        "cts-tradefed",
-        "host-libprotobuf-java-full",
-        "tradefed",
-        "truth",
-    ],
+    defaults: ["uprobestats-test-defaults"],
+    srcs: [
+        "src/UprobeStatsTest.java",
+    ] + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
+        true: ["src/UprobeStatsTestBridgeService.java"],
+        false: [],
+    }),
+    libs: ["compatibility-host-util"],
     static_libs: [
-        "android.hardware.usb.flags-aconfig-java-host",
-        "android.os.flags-aconfig-java-host",
-        "cts-statsd-atom-host-test-utils",
         "flag-junit-host",
-        "perfetto_config-full",
         "art_flags_uprobestats_java_lib",
         "uprobestats_mainline_flags_java_lib_test_host",
-        "uprobestats-protos",
     ],
-    proto: {
-        type: "full",
-    },
     test_suites: [
         "general-tests",
         "mts-uprobestats",
@@ -54,75 +50,22 @@ java_test_host {
 
 java_test_host {
     name: "uprobestats-art-test",
-    srcs: [
-        "src/ArtTest.java",
-        "src/AbstractUprobeStatsTestRule.java",
-    ] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
-        true: ["src/binder_service/*.java"],
-        default: ["src/legacy/*.java"],
-    }),
-    java_resource_dirs: ["res"],
-    libs: [
-        "compatibility-host-util",
-        "core_cts_test_resources",
-        "cts-tradefed",
-        "host-libprotobuf-java-full",
-        "tradefed",
-        "truth",
-    ],
+    defaults: ["uprobestats-test-defaults"],
+    srcs: ["src/ArtTest.java"],
+    libs: ["compatibility-host-util"],
     static_libs: [
-        "android.hardware.usb.flags-aconfig-java-host",
-        "android.os.flags-aconfig-java-host",
-        "cts-statsd-atom-host-test-utils",
         "flag-junit-host",
-        "perfetto_config-full",
-        "art_flags_uprobestats_java_lib",
         "art-aconfig-rw-flags-java-lib-test",
-        "uprobestats_mainline_flags_java_lib_test_host",
-        "uprobestats-protos",
     ],
-    proto: {
-        type: "full",
-    },
     test_suites: ["general-tests"],
-    device_common_data: [
-        ":DisruptiveTestApp",
-    ],
+    device_common_data: [":DisruptiveTestApp"],
     test_config: "AndroidTestArt.xml",
 }
 
 java_test_host {
     name: "uprobestats-manual-test",
-    srcs: [
-        "src/AbstractUprobeStatsTestRule.java",
-        "src/manual/*.java",
-    ] + select(release_flag("RELEASE_UPROBESTATS_SERVICE"), {
-        true: ["src/binder_service/*.java"],
-        default: ["src/legacy/*.java"],
-    }),
-    java_resource_dirs: ["res"],
-    libs: [
-        "compatibility-host-util",
-        "core_cts_test_resources",
-        "cts-tradefed",
-        "host-libprotobuf-java-full",
-        "tradefed",
-        "truth",
-    ],
-    static_libs: [
-        "android.hardware.usb.flags-aconfig-java-host",
-        "android.os.flags-aconfig-java-host",
-        "cts-statsd-atom-host-test-utils",
-        "flag-junit-host",
-        "perfetto_config-full",
-        "art_flags_uprobestats_java_lib",
-        "art-aconfig-rw-flags-java-lib-test",
-        "uprobestats_mainline_flags_java_lib_test_host",
-        "uprobestats-protos",
-    ],
-    proto: {
-        type: "full",
-    },
+    defaults: ["uprobestats-test-defaults"],
+    srcs: ["src/UprobeStatsManualTest.java"],
     test_suites: ["general-tests"],
     test_config: "AndroidTestManual.xml",
 }

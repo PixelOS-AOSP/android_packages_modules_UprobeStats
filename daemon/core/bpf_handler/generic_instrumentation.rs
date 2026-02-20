@@ -5,7 +5,6 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
-use protobuf::MessageField;
 use uprobestats_bpf_structs::{CallResult, CallTimestamp};
 
 const JAVA_ARGUMENT_REGISTER_OFFSET: i32 = 2;
@@ -25,7 +24,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallTimestampHandler<A>
     fn on_item(&mut self, task: &ResolvedTask, data: &CallTimestamp) -> Result<()> {
         debug!("CallTimestamp - event: {}, timestamp_ns: {}", data.event, data.timestampNs,);
 
-        let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
+        let Some(ref statsd_logging_config) = task.statsd_logging_config else {
             return Ok(());
         };
 
@@ -66,7 +65,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallResultHandler<A> {
             debug!("CallResult - register: {} = {}", i, data.regs[i],);
         }
 
-        let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
+        let Some(ref statsd_logging_config) = task.statsd_logging_config else {
             return Ok(());
         };
 
@@ -101,39 +100,35 @@ mod test {
     use super::*;
     use crate::{
         atom::{test::TestAtomWriter, Field, UnstructuredAtom, Value},
-        config_resolver::ResolvedTask,
+        config_resolver::{ResolvedProcess, ResolvedTask},
     };
     use anyhow::Result;
-    use protobuf::MessageField;
     use std::collections::HashSet;
-    use uprobestats_proto::config::uprobestats_config::{task::StatsdLoggingConfig, Task};
+    use std::time::Duration;
+    use uprobestats_proto::config::uprobestats_config::task::StatsdLoggingConfig;
 
     fn create_task_with_atom_id(atom_id: i32) -> ResolvedTask {
-        let mut task = Task::new();
         let mut statsd_logging_config = StatsdLoggingConfig::new();
         statsd_logging_config.set_atom_id(atom_id.into());
-        task.statsd_logging_config = MessageField::some(statsd_logging_config);
 
         ResolvedTask {
-            task,
-            pid: 0,
-            uid: 0,
-            process_name: "".to_string(),
-            duration_seconds: 0,
+            id: 1,
+            duration: Duration::from_secs(0),
+            resolved_process: ResolvedProcess { pid: 0, uid: 0, name: "".to_string() },
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
+            statsd_logging_config: Some(statsd_logging_config),
         }
     }
 
     fn create_task_without_logging_config() -> ResolvedTask {
         ResolvedTask {
-            task: Task::new(),
-            pid: 0,
-            uid: 0,
-            process_name: "".to_string(),
-            duration_seconds: 0,
+            id: 1,
+            duration: Duration::from_secs(0),
+            resolved_process: ResolvedProcess { pid: 0, uid: 0, name: "".to_string() },
             resolved_probes: vec![],
             bpf_map_paths: HashSet::new(),
+            statsd_logging_config: None,
         }
     }
 
@@ -161,8 +156,8 @@ mod test {
         let atom_writer = TestAtomWriter::<UnstructuredAtom>::default();
         let mut handler = CallResultHandler { writer: atom_writer };
         let mut task = create_task_with_atom_id(123);
-        task.task.statsd_logging_config.as_mut().unwrap().primitive_argument_positions.push(1);
-        task.task.statsd_logging_config.as_mut().unwrap().primitive_argument_positions.push(3);
+        task.statsd_logging_config.as_mut().unwrap().primitive_argument_positions.push(1);
+        task.statsd_logging_config.as_mut().unwrap().primitive_argument_positions.push(3);
 
         let mut data = CallResult { pc: 0, regs: [0; 10] };
         data.regs[JAVA_ARGUMENT_REGISTER_OFFSET as usize + 1] = 101;

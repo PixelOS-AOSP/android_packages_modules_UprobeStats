@@ -1,12 +1,13 @@
 //! UprobeStats library
 mod atom;
+pub mod bpf_handler;
 pub mod bpf_map;
 #[cfg(feature = "bridge-service")]
 mod bridge_service;
 #[cfg(feature = "bridge-service")]
 mod device_properties;
+mod offsets;
 mod process;
-mod resolver_impl;
 pub mod task;
 pub mod uprobestats_service;
 

@@ -6,7 +6,6 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use log::{debug, trace};
-use protobuf::MessageField;
 use uprobestats_bpf_structs::{StartActivityAsUser, UpdateDeviceIdleTempAllowlistRecord};
 
 /// Test handler for JIT compiled code.
@@ -23,7 +22,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for JitHandler<A> {
     fn on_item(&mut self, task: &ResolvedTask, item: &StartActivityAsUser) -> Result<()> {
         let calling_package = bytes_as_str(&item.calling_package)?;
         let method_identifier = item.method_identifier;
-        let api_method_identifier = task.resolved_probes[0].method_identifier;
+        let api_method_identifier = task.resolved_probes[0].offsets.method_identifier();
         debug!(
             "StartActivityAsUser: method_identifier={}, api_method_identifier={}, calling_package={}, request_code={}, start_flags={}, user_id={}, validate_incoming_user={}, x0={}",
             method_identifier, api_method_identifier, calling_package, item.request_code, item.start_flags,item.user_id, item.validate_incoming_user, item.x0
@@ -36,7 +35,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for JitHandler<A> {
         let method_identifier = method_identifier as u64;
         assert_eq!(api_method_identifier, method_identifier);
 
-        let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
+        let Some(ref statsd_logging_config) = task.statsd_logging_config else {
             return Ok(());
         };
 
@@ -77,7 +76,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for AotHandler<A> {
         item: &UpdateDeviceIdleTempAllowlistRecord,
     ) -> Result<()> {
         let method_identifier = item.method_identifier;
-        let api_method_identifier = task.resolved_probes[0].method_identifier;
+        let api_method_identifier = task.resolved_probes[0].offsets.method_identifier();
         debug!("UpdateDeviceIdleTempAllowlistRecord: method_identifier={}, api_method_identifier={}, changing_uid={}, adding={}, duration_ms={}, type={}, reason_code={}, reason={}, calling_uid={}",
             method_identifier,
             api_method_identifier,
@@ -97,7 +96,7 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for AotHandler<A> {
         let method_identifier = method_identifier as u64;
         assert_eq!(api_method_identifier, method_identifier);
 
-        let MessageField(Some(ref statsd_logging_config)) = task.task.statsd_logging_config else {
+        let Some(ref statsd_logging_config) = task.statsd_logging_config else {
             return Ok(());
         };
 

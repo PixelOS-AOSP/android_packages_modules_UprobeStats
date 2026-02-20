@@ -1,4 +1,3 @@
-use crate::process::resolve_process;
 use anyhow::{anyhow, bail, Result};
 use binder::ExceptionCode;
 use dynamic_instrumentation_manager::{
@@ -7,27 +6,14 @@ use dynamic_instrumentation_manager::{
 use std::{thread, time::Duration};
 use uprobestats_core::{
     config_resolver,
-    config_resolver::{OffsetResolver, ProcessResolver, ResolvedProcess},
+    config_resolver::{OffsetResolver, ResolvedProcess},
 };
-use uprobestats_proto::config::uprobestats_config::task::TargetProcessSelection;
-
-pub(crate) struct ProcessResolverImpl {}
-impl ProcessResolver for ProcessResolverImpl {
-    fn resolve_process(
-        &self,
-        process_name: Option<&str>,
-        target_process_selection: TargetProcessSelection,
-        timeout: Duration,
-    ) -> Result<ResolvedProcess> {
-        resolve_process(process_name, target_process_selection, timeout)
-    }
-}
 
 pub(crate) struct OffsetResolverImpl {}
 impl OffsetResolver for OffsetResolverImpl {
     fn resolve_offsets(
         &self,
-        target_process: &config_resolver::TargetProcess,
+        target_process: &ResolvedProcess,
         method_descriptor: &config_resolver::MethodDescriptor,
     ) -> Result<Option<config_resolver::ExecutableMethodFileOffsets>> {
         let target_process = to_target_process(target_process)?;
@@ -92,8 +78,8 @@ fn to_method_descriptor(
     )
 }
 
-fn to_target_process(target_process: &config_resolver::TargetProcess) -> Result<TargetProcess> {
-    TargetProcess::new(target_process.uid, target_process.pid, &target_process.process_name)
+fn to_target_process(target_process: &ResolvedProcess) -> Result<TargetProcess> {
+    TargetProcess::new(target_process.uid.try_into()?, target_process.pid, &target_process.name)
 }
 
 fn to_config_resolver_offsets(

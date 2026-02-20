@@ -18,6 +18,7 @@ rust_defaults {
         "libanyhow",
         "liblog_rust",
         "liblogger",
+        "libthiserror",
     ],
 }
 
