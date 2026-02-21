@@ -13,7 +13,7 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-use uprobestats_rs::{
+use uprobestats_android::{
     is_user_build, task,
     uprobestats_service::{UprobeStatsService, UPROBESTATS_SERVICE_NAME},
 };

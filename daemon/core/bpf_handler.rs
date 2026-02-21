@@ -3,17 +3,14 @@ use crate::config_resolver::ResolvedTask;
 use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 
-#[cfg(feature = "bridge-service")]
 /// a11y handler
 pub mod accessibility;
 /// A module only for testing JIT integration.
-#[cfg(feature = "art-test")]
 pub mod art_test;
 /// Binder transaction handlers
 pub mod binder_transaction;
 /// Bitmap allocation handlers
 pub mod bitmap_allocation;
-#[cfg(feature = "bridge-service")]
 /// Disruptive app handlers
 pub mod disruptive_app;
 /// Generic instrumentation handlers
@@ -43,14 +40,12 @@ pub unsafe trait Handler {
 /// The key into the registry is expecte to be a valid BPF map on the filesystem.
 pub type HandlerRegistry = HashMap<&'static str, fn(&str, &ResolvedTask, Duration) -> Result<()>>;
 
-#[cfg(feature = "bridge-service")]
 enum DynamicInstrumentationPayloadIds {
-    // BinderTransaction = 1,
+    BinderTransaction = 1,
     DisabledLauncherActivity = 2,
     BindAllowBackgroundActivityStarts = 3,
 }
 
-#[cfg(feature = "bridge-service")]
 fn get_current_timestamp_millis() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
