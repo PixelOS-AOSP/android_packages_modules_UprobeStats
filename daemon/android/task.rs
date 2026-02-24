@@ -9,15 +9,14 @@ use binder::LazyServiceGuard;
 use log::{debug, error, trace};
 use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
+    ffi::c_ulong,
     os::fd::{AsRawFd, OwnedFd},
     sync::MutexGuard,
     thread,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
-use uprobestats_core::config_resolver::{
-    self, BinderTransactionFilter, ConfigError, ResolvedProbe, ResolvedTask,
-};
+use uprobestats_core::config_resolver::{self, ConfigError, ResolvedProbe, ResolvedTask};
 
 /// The global state for the uprobestats daemon process.
 /// - Some(ActiveState): tracks metadata when there are tasks currently running.
@@ -149,11 +148,12 @@ fn setup_binder_transaction_filters(
 }
 
 fn write_binder_transaction_filter_to_binder_bpf_map(
-    binder_transaction_filters: &[BinderTransactionFilter],
+    binder_transaction_filters: &HashMap<String, HashSet<c_ulong>>,
     binder_interface_bpf_map: &BinderInterfaceMapAccessor,
 ) -> Result<()> {
-    for BinderTransactionFilter { interface_name, method_ids } in binder_transaction_filters {
-        binder_interface_bpf_map.put(interface_name, method_ids, UpdateMapElemFlags::Insert)?;
+    for (interface_name, method_configs) in binder_transaction_filters {
+        let method_ids: Vec<c_ulong> = method_configs.iter().cloned().collect();
+        binder_interface_bpf_map.put(interface_name, &method_ids, UpdateMapElemFlags::Insert)?;
         trace!("wrote {interface_name}:{:?} to binder interface bpf map", method_ids);
     }
     Ok(())
