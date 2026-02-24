@@ -11,6 +11,14 @@
         },
         {
             "name": "uprobestats-core-test"
+        },
+        {
+            "name": "CtsPerfAtomHostTestCases",
+            "options": [
+                {
+                    "include-filter": "android.cts.statsdatom.perf.UprobeStatsTest"
+                }
+            ]
         }
     ],
     "uprobestats-mainline-presubmit": [
@@ -27,7 +35,12 @@
             "name": "uprobestats-core-test"
         },
         {
-            "name": "CtsPerfAtomHostTestCases"
+            "name": "CtsPerfAtomHostTestCases",
+            "options": [
+                {
+                    "include-filter": "android.cts.statsdatom.perf.UprobeStatsTest"
+                }
+            ]
         }
     ]
 }
