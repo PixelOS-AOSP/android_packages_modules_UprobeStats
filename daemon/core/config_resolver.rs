@@ -303,7 +303,6 @@ pub fn prefix_bpf(path: &str) -> String {
 }
 
 #[cfg(test)]
-#[allow(unused)]
 mod tests {
     use super::*;
     use protobuf::Message;
@@ -427,112 +426,62 @@ mod tests {
 
     #[test]
     fn resolve_single_task_success() {
-        let resolver = MockProcessResolver {
-            result: Ok(ResolvedProcess { pid: 123, uid: 456, name: "test_process".to_string() }),
-        };
-        let mut task = Task::new();
-        task.duration_seconds = Some(10);
-
-        let resolved_task =
-            resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none()).unwrap();
-        assert_eq!(resolved_task.resolved_process.pid, 123);
-        assert_eq!(resolved_task.resolved_process.uid, 456);
-        assert_eq!(resolved_task.resolved_process.name, "test_process");
+        let resolved_task = resolve_task_simple(&make_task(10)).unwrap();
+        let expected = default_resolved_process();
+        assert_eq!(resolved_task.resolved_process.pid, expected.pid);
+        assert_eq!(resolved_task.resolved_process.uid, expected.uid);
+        assert_eq!(resolved_task.resolved_process.name, expected.name);
     }
 
     #[test]
     fn resolve_single_task_no_tasks() {
-        let resolver = MockProcessResolver {
-            result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
-        };
         let config = UprobestatsConfig::new(); // No tasks
         let result = resolve_config(
             &config.write_to_bytes().unwrap(),
             false,
-            &resolver,
+            &MockProcessResolver::success(),
             &MockOffsetResolver::none(),
         );
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Config must have exactly one task, got 0"));
+        assert_err_contains(result, "Config must have exactly one task, got 0");
     }
 
     #[test]
     fn resolve_single_task_no_duration() {
-        let resolver = MockProcessResolver {
-            result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
-        };
-        let task = Task::new(); // No duration
-        let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Task duration is required"));
+        assert_err_contains(resolve_task_simple(&Task::new()), "Task duration is required");
     }
 
     #[test]
     fn resolve_single_task_process_resolver_error() {
         let resolver = MockProcessResolver { result: Err(anyhow!("process not found")) };
-        let mut task = Task::new();
-        task.duration_seconds = Some(10);
+        let task = make_task(10);
         let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("process not found"));
+        assert_err_contains(result, "process not found");
     }
 
     #[test]
     fn resolve_single_task_multiple_tasks() {
-        let resolver = MockProcessResolver {
-            result: Ok(ResolvedProcess { pid: 123, uid: 456, name: "test_process".to_string() }),
-        };
-        let mut task1 = Task::new();
-        task1.duration_seconds = Some(10);
-        let mut task2 = Task::new();
-        task2.duration_seconds = Some(20);
+        let task1 = make_task(10);
+        let task2 = make_task(20);
         let config = UprobestatsConfig { tasks: vec![task1, task2], ..Default::default() };
 
         let result = resolve_config(
             &config.write_to_bytes().unwrap(),
             false,
-            &resolver,
+            &MockProcessResolver::success(),
             &MockOffsetResolver::none(),
         );
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Config must have exactly one task, got 2"));
+        assert_err_contains(result, "Config must have exactly one task, got 2");
     }
 
     #[test]
     fn resolve_single_task_zero_duration() {
-        let resolver = MockProcessResolver {
-            result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
-        };
-        let mut task = Task::new();
-        task.duration_seconds = Some(0);
-        let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("must be greater than 0"));
+        assert_err_contains(resolve_task_simple(&make_task(0)), "must be greater than 0");
     }
 
     #[test]
     fn resolve_probes_success() {
-        let mut probe = ProbeConfig::new();
-        probe.bpf_name = Some("test.bpf.o".to_string());
-        probe.fully_qualified_class_name = Some("com.example.Test".to_string());
-        probe.method_name = Some("testMethod".to_string());
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver {
-            result: Ok(Some(ExecutableMethodFileOffsets {
-                container_path: "/path/to/file".to_string(),
-                container_offset: 0,
-                method_offset: 1234,
-            })),
-        };
-
-        let resolved_probes = resolve_probes(vec![probe], &resolved_process, &resolver).unwrap();
+        let resolved_probes =
+            resolve_probes_simple(vec![default_probe()], &MockOffsetResolver::success()).unwrap();
         assert_eq!(resolved_probes.len(), 1);
         assert_eq!(resolved_probes[0].offsets.container_path, "/path/to/file");
         assert_eq!(resolved_probes[0].offsets.method_offset, 1234);
@@ -540,98 +489,57 @@ mod tests {
 
     #[test]
     fn resolve_probes_offset_not_found() {
-        let mut probe = ProbeConfig::new();
-        probe.bpf_name = Some("test.bpf.o".to_string());
-        probe.fully_qualified_class_name = Some("com.example.Test".to_string());
-        probe.method_name = Some("testMethod".to_string());
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver { result: Ok(None) };
-
-        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to get offsets"));
+        let result = resolve_probes_simple(vec![default_probe()], &MockOffsetResolver::none());
+        assert_err_contains(result, "Failed to get offsets");
     }
 
     #[test]
     fn resolve_probes_missing_bpf_name() {
-        let probe = ProbeConfig::new(); // No bpf_name
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver { result: Ok(None) };
-
-        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("bpf_name is required"));
+        let mut probe = default_probe();
+        probe.bpf_name = None;
+        assert_err_contains(
+            resolve_probes_simple(vec![probe], &MockOffsetResolver::none()),
+            "bpf_name is required",
+        );
     }
 
     #[test]
     fn resolve_probes_missing_method_name() {
-        let mut probe = ProbeConfig::new();
-        probe.bpf_name = Some("test.bpf.o".to_string());
-        probe.fully_qualified_class_name = Some("com.example.Test".to_string());
-        // No method name
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver { result: Ok(None) };
-
-        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("method_name is required"));
+        let mut probe = default_probe();
+        probe.method_name = None;
+        assert_err_contains(
+            resolve_probes_simple(vec![probe], &MockOffsetResolver::none()),
+            "method_name is required",
+        );
     }
 
     #[test]
     fn resolve_probes_multiple_probes() {
-        let mut probe1 = ProbeConfig::new();
-        probe1.bpf_name = Some("test1.bpf.o".to_string());
-        probe1.fully_qualified_class_name = Some("com.example.Test1".to_string());
-        probe1.method_name = Some("testMethod1".to_string());
-        let mut probe2 = ProbeConfig::new();
-        probe2.bpf_name = Some("test2.bpf.o".to_string());
-        probe2.fully_qualified_class_name = Some("com.example.Test2".to_string());
-        probe2.method_name = Some("testMethod2".to_string());
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver {
-            result: Ok(Some(ExecutableMethodFileOffsets {
-                container_path: "/path/to/file".to_string(),
-                container_offset: 0,
-                method_offset: 1234,
-            })),
-        };
+        let probe1 = make_probe("test1.bpf.o", "com.example.Test1", "testMethod1");
+        let probe2 = make_probe("test2.bpf.o", "com.example.Test2", "testMethod2");
 
         let resolved_probes =
-            resolve_probes(vec![probe1, probe2], &resolved_process, &resolver).unwrap();
+            resolve_probes_simple(vec![probe1, probe2], &MockOffsetResolver::success()).unwrap();
         assert_eq!(resolved_probes.len(), 2);
     }
 
     #[test]
     fn resolve_probes_missing_class_name() {
-        let mut probe = ProbeConfig::new();
-        probe.bpf_name = Some("test.bpf.o".to_string());
-        probe.method_name = Some("testMethod".to_string());
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
-        let resolver = MockOffsetResolver { result: Ok(None) };
-
-        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("fully_qualified_class_name is required"));
+        let mut probe = default_probe();
+        probe.fully_qualified_class_name = None;
+        assert_err_contains(
+            resolve_probes_simple(vec![probe], &MockOffsetResolver::none()),
+            "fully_qualified_class_name is required",
+        );
     }
 
     #[test]
     fn resolve_probes_offset_resolver_error() {
-        let mut probe = ProbeConfig::new();
-        probe.bpf_name = Some("test.bpf.o".to_string());
-        probe.fully_qualified_class_name = Some("com.example.Test".to_string());
-        probe.method_name = Some("testMethod".to_string());
-        let resolved_process =
-            ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 };
         let resolver = MockOffsetResolver { result: Err(anyhow!("resolver error")) };
-
-        let result = resolve_probes(vec![probe], &resolved_process, &resolver);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("resolver error"));
+        assert_err_contains(
+            resolve_probes_simple(vec![default_probe()], &resolver),
+            "resolver error",
+        );
     }
 
     #[test]
@@ -656,10 +564,7 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_success() {
         let mut probe = ProbeConfig::new();
-        let mut filter = BinderTransactionFilter::new();
-        filter.interface_name = Some("test.interface".to_string());
-        filter.method_ids = vec![1, 2];
-        probe.binder_transaction_filters = vec![filter];
+        probe.binder_transaction_filters = vec![make_filter(Some("test.interface"), vec![1, 2])];
 
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME).unwrap();
         assert_eq!(result.len(), 1);
@@ -671,41 +576,23 @@ mod tests {
     fn resolve_binder_transaction_filters_empty_filters_for_binder_bpf() {
         let probe = ProbeConfig::new(); // No filters
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("requires at least one binder_transaction_filter"));
+        assert_err_contains(result, "requires at least one binder_transaction_filter");
     }
 
     #[test]
     fn resolve_binder_transaction_filters_with_filters_for_non_binder_bpf() {
         let mut probe = ProbeConfig::new();
-        let mut filter = BinderTransactionFilter::new();
-        filter.interface_name = Some("test.interface".to_string());
-        probe.binder_transaction_filters = vec![filter];
-
+        probe.binder_transaction_filters = vec![make_filter(Some("test.interface"), vec![1])];
         let result = resolve_binder_transaction_filters(&probe, "other.bpf.o");
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("binder_transaction_filters is only supported for"));
+        assert_err_contains(result, "binder_transaction_filters is only supported for");
     }
 
     #[test]
     fn resolve_binder_transaction_filters_missing_interface_name() {
         let mut probe = ProbeConfig::new();
-        let filter = BinderTransactionFilter::new();
-        // No interface name
-        probe.binder_transaction_filters = vec![filter];
-
+        probe.binder_transaction_filters = vec![make_filter(None, vec![1])];
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("binder_transaction_filter.interface_name is required"));
+        assert_err_contains(result, "binder_transaction_filter.interface_name is required");
     }
 
     #[test]
