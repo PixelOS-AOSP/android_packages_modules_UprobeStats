@@ -303,6 +303,7 @@ pub fn prefix_bpf(path: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use super::*;
     use protobuf::Message;
@@ -314,8 +315,67 @@ mod tests {
         UprobestatsConfig,
     };
 
+    fn make_task(duration: i32) -> Task {
+        let mut task = Task::new();
+        task.duration_seconds = Some(duration);
+        task
+    }
+
+    fn make_probe(bpf_name: &str, class: &str, method: &str) -> ProbeConfig {
+        let mut probe = ProbeConfig::new();
+        probe.bpf_name = Some(bpf_name.to_string());
+        probe.fully_qualified_class_name = Some(class.to_string());
+        probe.method_name = Some(method.to_string());
+        probe
+    }
+
+    fn default_probe() -> ProbeConfig {
+        make_probe("test.bpf.o", "com.example.Test", "testMethod")
+    }
+
+    fn default_resolved_process() -> ResolvedProcess {
+        ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 }
+    }
+
+    fn make_filter(interface: Option<&str>, methods: Vec<i64>) -> BinderTransactionFilter {
+        let mut filter = BinderTransactionFilter::new();
+        filter.interface_name = interface.map(|s| s.to_string());
+        filter.method_ids = methods;
+        filter
+    }
+
+    fn assert_err_contains<T: std::fmt::Debug, E: std::fmt::Display + std::fmt::Debug>(
+        result: Result<T, E>,
+        substring: &str,
+    ) {
+        let err = result.expect_err("Expected error, got Ok");
+        assert!(
+            err.to_string().contains(substring),
+            "Error {:?} did not contain '{}'",
+            err,
+            substring
+        );
+    }
+
+    fn resolve_task_simple(task: &Task) -> Result<ResolvedTask> {
+        resolve_single_task(task, 0, &MockProcessResolver::success(), &MockOffsetResolver::none())
+    }
+
+    fn resolve_probes_simple(
+        probes: Vec<ProbeConfig>,
+        resolver: &impl OffsetResolver,
+    ) -> Result<Vec<ResolvedProbe>> {
+        resolve_probes(probes, &default_resolved_process(), resolver)
+    }
+
     struct MockProcessResolver {
         result: Result<ResolvedProcess, anyhow::Error>,
+    }
+
+    impl MockProcessResolver {
+        fn success() -> Self {
+            Self { result: Ok(default_resolved_process()) }
+        }
     }
 
     impl ProcessResolver for MockProcessResolver {
@@ -333,14 +393,35 @@ mod tests {
         }
     }
 
-    struct NoneOffsetResolver {}
-    impl OffsetResolver for NoneOffsetResolver {
+    struct MockOffsetResolver {
+        result: Result<Option<ExecutableMethodFileOffsets>, anyhow::Error>,
+    }
+
+    impl MockOffsetResolver {
+        fn success() -> Self {
+            Self {
+                result: Ok(Some(ExecutableMethodFileOffsets {
+                    container_path: "/path/to/file".to_string(),
+                    container_offset: 0,
+                    method_offset: 1234,
+                })),
+            }
+        }
+        fn none() -> Self {
+            Self { result: Ok(None) }
+        }
+    }
+
+    impl OffsetResolver for MockOffsetResolver {
         fn resolve_offsets(
             &self,
             _target_process: &ResolvedProcess,
             _method_descriptor: &MethodDescriptor,
         ) -> Result<Option<ExecutableMethodFileOffsets>> {
-            Ok(None)
+            match &self.result {
+                Ok(opt) => Ok(opt.clone()),
+                Err(e) => Err(anyhow!(e.to_string())),
+            }
         }
     }
 
@@ -353,7 +434,7 @@ mod tests {
         task.duration_seconds = Some(10);
 
         let resolved_task =
-            resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {}).unwrap();
+            resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none()).unwrap();
         assert_eq!(resolved_task.resolved_process.pid, 123);
         assert_eq!(resolved_task.resolved_process.uid, 456);
         assert_eq!(resolved_task.resolved_process.name, "test_process");
@@ -369,7 +450,7 @@ mod tests {
             &config.write_to_bytes().unwrap(),
             false,
             &resolver,
-            &NoneOffsetResolver {},
+            &MockOffsetResolver::none(),
         );
         assert!(result.is_err());
         assert!(result
@@ -384,7 +465,7 @@ mod tests {
             result: Ok(ResolvedProcess { pid: 0, uid: 0, name: "".to_string() }),
         };
         let task = Task::new(); // No duration
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Task duration is required"));
     }
@@ -394,7 +475,7 @@ mod tests {
         let resolver = MockProcessResolver { result: Err(anyhow!("process not found")) };
         let mut task = Task::new();
         task.duration_seconds = Some(10);
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("process not found"));
     }
@@ -414,7 +495,7 @@ mod tests {
             &config.write_to_bytes().unwrap(),
             false,
             &resolver,
-            &NoneOffsetResolver {},
+            &MockOffsetResolver::none(),
         );
         assert!(result.is_err());
         assert!(result
@@ -430,31 +511,9 @@ mod tests {
         };
         let mut task = Task::new();
         task.duration_seconds = Some(0);
-        let result = resolve_single_task(&task, 0, &resolver, &NoneOffsetResolver {});
+        let result = resolve_single_task(&task, 0, &resolver, &MockOffsetResolver::none());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("must be greater than 0"));
-    }
-
-    struct MockOffsetResolver {
-        result: Result<Option<ExecutableMethodFileOffsets>, anyhow::Error>,
-    }
-
-    impl OffsetResolver for MockOffsetResolver {
-        fn resolve_offsets(
-            &self,
-            _target_process: &ResolvedProcess,
-            _method_descriptor: &MethodDescriptor,
-        ) -> Result<Option<ExecutableMethodFileOffsets>> {
-            match &self.result {
-                Ok(Some(offsets)) => Ok(Some(ExecutableMethodFileOffsets {
-                    container_path: offsets.container_path.clone(),
-                    container_offset: offsets.container_offset,
-                    method_offset: offsets.method_offset,
-                })),
-                Ok(None) => Ok(None),
-                Err(e) => Err(anyhow!(e.to_string())),
-            }
-        }
     }
 
     #[test]
