@@ -20,6 +20,7 @@ import static android.Manifest.permission.DYNAMIC_INSTRUMENTATION;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.annotation.PermissionManuallyEnforced;
+import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -153,6 +154,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                 }
             };
 
+    @SuppressLint("NewApi")
     private void bindConsumerAndSendEvents(List<Event> events) throws RemoteException {
         DynamicInstrumentationManager dynamicInstrumentationManager =
                 mContext.getSystemService(DynamicInstrumentationManager.class);
@@ -252,6 +254,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
 
     @Override
     @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+    @SuppressLint("NewApi")
     public boolean enableTestMode(String packageName, String className) {
         mContext.enforceCallingPermission(
                 DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
@@ -265,6 +268,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
 
     @Override
     @PermissionManuallyEnforced // @EnforcePermission("DYNAMIC_INSTRUMENTATION")
+    @SuppressLint("NewApi")
     public boolean disableTestMode() {
         mContext.enforceCallingPermission(
                 DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
