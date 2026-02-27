@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use log::{debug, error, trace};
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, sync::LazyLock, time::Duration};
-use uprobestats_bpf::poll_ring_buf;
+use uprobestats_bpf::BpfRingBuffer;
 use uprobestats_core::bpf_handler::art_test::{AotHandler, JitHandler};
 use uprobestats_core::bpf_handler::bitmap_allocation::{
     BitmapAllocationHandlerV0, BitmapAllocationHandlerV1,
@@ -47,13 +47,14 @@ fn poll_loop_generic<H: Handler + Default>(
     let mut handler = H::default();
     let timer = Timer::new(duration);
     let mut total_events: i64 = 0;
+    // SAFETY: we've just checked that the passed `map_path` is the same as the one
+    // expected by the `Handler` implementation, which encodes how the expected type is mapped to the
+    // ring buffer's path.
+    let mut ring_buffer = unsafe { BpfRingBuffer::<H::T>::new(map_path)? };
     while let Some(remaining_millis) = timer.remaining_millis() {
         let remaining_millis: i32 = remaining_millis.try_into()?;
         debug!("polling {} for {} seconds", map_path, remaining_millis / 1000);
-        // SAFETY: we've just checked that the passed `map_path` is the same as the one
-        // expected by the `Handler` implementation, which encodes how the expected type is mapped to the
-        // ring buffer's path.
-        let result: Result<Vec<H::T>> = unsafe { poll_ring_buf(map_path, remaining_millis) };
+        let result: Result<Vec<H::T>> = ring_buffer.poll(remaining_millis);
         let result = result?;
         trace!("Done polling {}, event count: {}", map_path, result.len());
         total_events += result.len() as i64;

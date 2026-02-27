@@ -20,38 +20,60 @@ use anyhow::{ensure, Result};
 use std::{
     ffi::c_void,
     fmt::Debug,
+    marker::PhantomData,
     mem::MaybeUninit,
     os::fd::{FromRawFd, OwnedFd},
 };
 use uprobestats_bpf_bindgen::{
     bpfMapClose, bpfMapDeleteElem, bpfMapGetFirstKey, bpfMapLookupElem, bpfMapOpenExclusiveRW,
-    bpfMapUpdateElem, bpfPerfEventOpen, pollRingBuf, BpfMapHandle,
+    bpfMapUpdateElem, bpfPerfEventOpen, bpfRingBufCreate, bpfRingBufDestroy, bpfRingBufPoll,
+    BpfMapHandle, BpfRingBufHandle,
 };
 use uprobestats_c_string::c_string;
 
-/// Polls the BPF ring buffer at the passed `map_path`, collecting any values
-/// emitted within `timeout_ms` into a `Vec<T>`, where `T` is expected to be
-/// the type written to the ring buffer by a corresponding eBPF program.
-///
-/// # Safety
-///   - `T` matches the type that is written to the BPF ring buffer at `map_path`.
-pub unsafe fn poll_ring_buf<T: Copy + Debug>(map_path: &str, timeout_ms: i32) -> Result<Vec<T>> {
-    let map_path = c_string(map_path)?;
-    let mut data: Vec<T> = Vec::new();
-    let data_ptr = &mut data as *mut _ as *mut c_void;
-    // SAFETY:
-    // - `map_path` is a valid pointer by virtue of coming from a `CString`.
-    // - caller has guaranteed that `T` is the right type, which we use to derive its size.
-    // - `callback` is a valid function pointer defined below.
-    // - `data_ptr` is a valid pointer from the `Vec::new` construction above.
-    // - due to all of the above, `callback` will be called with a valid pointer to a `T` and a
-    //   valid pointer to a `Vec<T>`, which is safe to mutate because we have an exclusive
-    //   reference to the `Vec`.
-    let result = unsafe {
-        pollRingBuf(map_path.as_ptr(), timeout_ms, size_of::<T>(), Some(callback::<T>), data_ptr)
-    };
-    ensure!(result >= 0, "Failed to poll ring buffer. Error code: {}", result);
-    Ok(data)
+/// A persistent handle to a BPF ring buffer.
+pub struct BpfRingBuffer<T> {
+    handle: *mut BpfRingBufHandle,
+    _marker: PhantomData<*const T>,
+}
+
+impl<T: Copy + Debug> BpfRingBuffer<T> {
+    /// Creates a new BpfRingBuffer.
+    ///
+    /// # Safety
+    ///   - `T` must match the type that is written to the BPF ring buffer at `map_path`.
+    pub unsafe fn new(map_path: &str) -> Result<Self> {
+        let map_path = c_string(map_path)?;
+        // SAFETY: map_path is a valid C string.
+        let handle = unsafe { bpfRingBufCreate(map_path.as_ptr(), size_of::<T>()) };
+        ensure!(!handle.is_null(), "Failed to create BpfRingBuffer");
+        Ok(Self { handle, _marker: PhantomData })
+    }
+
+    /// Polls the ring buffer.
+    pub fn poll(&mut self, timeout_ms: i32) -> Result<Vec<T>> {
+        let mut data: Vec<T> = Vec::new();
+        let data_ptr = &mut data as *mut _ as *mut c_void;
+        // SAFETY:
+        // - `callback` is a valid function pointer defined below.
+        // - `data_ptr` is a valid pointer from the `Vec::new` construction above.
+        // - `T` is the same type used to create the ring buffer, so the callback will receive
+        //   pointers to `T` values.
+        // - due to all of the above, `callback` will be called with a valid pointer to a `T` and a
+        //   valid pointer to a `Vec<T>`, which is safe to mutate because we have an exclusive
+        //   reference to `self` and the `Vec`.
+        let result =
+            unsafe { bpfRingBufPoll(self.handle, timeout_ms, Some(callback::<T>), data_ptr) };
+        ensure!(result >= 0, "Failed to poll ring buffer. Error code: {}", result);
+        Ok(data)
+    }
+}
+
+impl<T> Drop for BpfRingBuffer<T> {
+    fn drop(&mut self) {
+        // SAFETY: handle is valid and we are dropping the object that owns it.
+        unsafe { bpfRingBufDestroy(self.handle) };
+    }
 }
 
 /// Callback function for `pollRingBuf`.

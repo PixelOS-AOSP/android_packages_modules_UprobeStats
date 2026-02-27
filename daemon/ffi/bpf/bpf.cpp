@@ -27,17 +27,32 @@
 
 #include "bpf/BpfRingbuf.h"
 
-int pollRingBuf(const char *mapPath, int timeoutMs, size_t valueSize,
-                void (*callback)(const void *, void *), void *cookie) {
+struct BpfRingBufHandle {
+  std::unique_ptr<android::bpf::BpfRingbufSized> ringbuf;
+};
+
+BpfRingBufHandle* bpfRingBufCreate(const char* mapPath, size_t valueSize) {
   auto result = android::bpf::BpfRingbufSized::Create(mapPath, valueSize);
   if (!result.ok()) {
+    LOG(ERROR) << "Failed to create BpfRingbufSized: "
+               << result.error().message();
+    return nullptr;
+  }
+  return new BpfRingBufHandle{std::move(result.value())};
+}
+
+void bpfRingBufDestroy(BpfRingBufHandle* handle) { delete handle; }
+
+int bpfRingBufPoll(BpfRingBufHandle* handle, int timeoutMs,
+                   void (*callback)(const void*, void*), void* cookie) {
+  if (!handle) {
     return -1;
   }
-  if (!result.value()->wait(timeoutMs)) {
+  if (!handle->ringbuf->wait(timeoutMs)) {
     return 0;
   }
-  auto count = result.value()->ConsumeAll(
-      [&](const void *value) { callback(value, cookie); });
+  auto count = handle->ringbuf->ConsumeAll(
+      [&](const void* value) { callback(value, cookie); });
   if (!count.ok()) {
     LOG(ERROR) << "Failed to consume events from ring buffer. Error: "
                << count.error().message();
