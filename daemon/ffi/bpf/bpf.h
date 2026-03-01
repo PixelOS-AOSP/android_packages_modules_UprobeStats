@@ -21,9 +21,13 @@
 __BEGIN_DECLS
 
 typedef struct BpfMapHandle BpfMapHandle;
+typedef struct BpfRingBufHandle BpfRingBufHandle;
 
-int pollRingBuf(const char *mapPath, int timeoutMs, size_t valueSize,
-                void (*callback)(const void *, void *), void *cookie);
+BpfRingBufHandle *bpfRingBufCreate(const char *mapPath, size_t valueSize);
+void bpfRingBufDestroy(BpfRingBufHandle *handle);
+int bpfRingBufPoll(BpfRingBufHandle *handle, int timeoutMs,
+                   void (*callback)(const void *, void *), void *cookie);
+
 int bpfPerfEventOpen(const char *filename, int offset, int pid,
                      const char *bpfProgramPath);
 

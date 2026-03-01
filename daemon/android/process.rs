@@ -8,7 +8,7 @@ use log::trace;
 use std::fs::{read, read_dir};
 use std::sync::mpsc;
 use std::time::Duration;
-use uprobestats_bpf::{bpf_perf_event_open, poll_ring_buf};
+use uprobestats_bpf::{bpf_perf_event_open, BpfRingBuffer};
 use uprobestats_bpf_bindgen::ProcessChange;
 use uprobestats_core::string::bytes_as_str;
 use uprobestats_core::{
@@ -129,12 +129,12 @@ fn wait_for_app_start_uprobe(
     )?;
 
     let timer = Timer::new(duration);
+    let mut ring_buffer =
+        // SAFETY: hard coded `const BPF_MAP_PROCESS_MANAGEMENT` writes the `ProcessChange` struct.
+        unsafe { BpfRingBuffer::<ProcessChange>::new(&prefix_bpf(BPF_MAP_PROCESS_MANAGEMENT))? };
     while let Some(remaining_millis) = timer.remaining_millis() {
         trace!("polling {} for {} seconds", BPF_MAP_PROCESS_MANAGEMENT, remaining_millis / 1000);
-        // SAFETY: hard coded `const BPF_MAP_PROCESS_MANAGEMENT` writes the `ProcessChange` struct.
-        let result: Result<Vec<ProcessChange>> = unsafe {
-            poll_ring_buf(&prefix_bpf(BPF_MAP_PROCESS_MANAGEMENT), remaining_millis.try_into()?)
-        };
+        let result: Result<Vec<ProcessChange>> = ring_buffer.poll(remaining_millis.try_into()?);
         let result = result?;
         for process_change in result {
             let result_process_name = bytes_as_str(&process_change.process_name)?;

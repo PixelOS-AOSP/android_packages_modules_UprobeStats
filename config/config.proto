@@ -3,15 +3,12 @@ syntax = "proto2";
 package uprobestats.protos;
 
 message UprobestatsConfig {
-
   // A Task consists of one or more probes that target the same process and are
   // activated and deactivated together.
   message Task {
-
     // A ProbeConfig defines the spec of a single probe, including which BPF to
     // use and where to place the probe.
     message ProbeConfig {
-
       // Name of the BPF program and function. E.g.
       // prog_BitmapAllocation_uprobe_bitmap_constructor_heap. Note that this
       // does not include the full BPF program path.
@@ -23,12 +20,15 @@ message UprobestatsConfig {
       // re-compiled by ART and stored in a different location. uprobestats
       // would try to place the probe on each of the paths in the order
       // specified here until the probe is successfully placed.
-      // Superseded by `fully_qualified_class_name`, `method_name`, and `fully_qualified_parameters`.
+      // Superseded by `fully_qualified_class_name`, `method_name`, and
+      // `fully_qualified_parameters`.
       repeated string file_paths = 2;
 
       // Full method signature. E.g.
-      // void android.content.pm.PackageManagerInternal.finishPackageInstall(int, boolean)
-      // Superseded by `fully_qualified_class_name`, `method_name`, and `fully_qualified_parameters`.
+      // void
+      // android.content.pm.PackageManagerInternal.finishPackageInstall(int,
+      // boolean) Superseded by `fully_qualified_class_name`, `method_name`, and
+      // `fully_qualified_parameters`.
       optional string method_signature = 3;
 
       // Fully qualified class name of the method being targeted. E.g.
@@ -38,8 +38,8 @@ message UprobestatsConfig {
       // Method name of the method being targeted. E.g. "finishPackageInstall"
       // Supersedes `file_paths` and `method_signature`
       optional string method_name = 5;
-      // Fully qualified parameters list of the method being targeted. E.g. ["int", "boolean"]
-      // Supersedes `file_paths` and `method_signature`
+      // Fully qualified parameters list of the method being targeted. E.g.
+      // ["int", "boolean"] Supersedes `file_paths` and `method_signature`
       repeated string fully_qualified_parameters = 6;
 
       repeated BinderTransactionFilter binder_transaction_filters = 7;
@@ -48,7 +48,8 @@ message UprobestatsConfig {
     repeated ProbeConfig probe_configs = 1;
 
     // Name of the FDs that the BPF programs write to. E.g.
-    // map_BitmapAllocation_output_buf. Note that this does not include the full file path.
+    // map_BitmapAllocation_output_buf. Note that this does not include the full
+    // file path.
     repeated string bpf_maps = 2;
 
     // Name of the process to be probed, e.g. system_server.
@@ -59,10 +60,11 @@ message UprobestatsConfig {
 
     message StatsdLoggingConfig {
       optional int64 atom_id = 1;
-      // The positions of any arguments to the method call that should be sent to the atom.
-      // These arguments MUST be primitive types (e.g. bool, int), NOT complex objects
-      // (that will be nothing but pointers). The positions should be ordered in the same
-      // order as the corresponding fields of the atom to be populated.
+      // The positions of any arguments to the method call that should be sent
+      // to the atom. These arguments MUST be primitive types (e.g. bool, int),
+      // NOT complex objects (that will be nothing but pointers). The positions
+      // should be ordered in the same order as the corresponding fields of the
+      // atom to be populated.
       //
       // For example, given the method:
       // `void startThing(int argA, int argB, int argC)`
@@ -73,8 +75,8 @@ message UprobestatsConfig {
       //   optional int logged_arg_a = 2;
       // }
       // ```
-      // The config value should be [1, 0], meaning the 2nd argument is actually the
-      // first field in the atom, and vice versa.
+      // The config value should be [1, 0], meaning the 2nd argument is actually
+      // the first field in the atom, and vice versa.
       repeated int32 primitive_argument_positions = 2;
     }
     optional StatsdLoggingConfig statsd_logging_config = 5;
@@ -84,17 +86,38 @@ message UprobestatsConfig {
       SPECIFIC_PROCESS_NAME = 1;
       ANY_APP_PROCESS_ON_START = 2;
       SPECIFIC_APP_PROCESS_ON_START = 3;
-    };
+    }
 
     optional TargetProcessSelection target_process_selection = 6;
 
     optional int64 task_id = 7;
 
+    // Config for instrumenting binder transactions, specific to particular
+    // bpf program and map output.
     message BinderTransactionFilter {
+      // Fully qualified name of the interface to filter on. E.g.
+      // "com.android.internal.app.IBatteryStats"
       optional string interface_name = 1;
-      repeated int64 method_ids = 2;
-    }
+      // Use method_configs instead.
+      repeated int64 method_ids = 2 [deprecated = true];
+      // Configuration for individual methods on the given interface.
+      repeated MethodConfig method_configs = 3;
 
+      message MethodConfig {
+        // Numeric ID of the method (a.k.a. transaction code)
+        optional int64 method_id = 1;
+        // Configuration for sending events to
+        // `DynamicInstrumentationEventService`.
+        optional EventServiceConfig event_service_config = 2;
+
+        message EventServiceConfig {
+          // Whether to flush the event to `DynamicInstrumentationEventService`,
+          // e.g. bind to the client immediately to deliver this event, along
+          // with any previously queued events.
+          optional bool flush = 1;
+        }
+      }
+    }
   }
 
   repeated Task tasks = 1;
