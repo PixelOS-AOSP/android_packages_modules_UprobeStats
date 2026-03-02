@@ -148,11 +148,11 @@ fn setup_binder_transaction_filters(
 }
 
 fn write_binder_transaction_filter_to_binder_bpf_map(
-    binder_transaction_filters: &HashMap<String, HashSet<c_ulong>>,
+    binder_transaction_filters: &HashMap<String, HashMap<c_ulong, bool>>,
     binder_interface_bpf_map: &BinderInterfaceMapAccessor,
 ) -> Result<()> {
     for (interface_name, method_configs) in binder_transaction_filters {
-        let method_ids: Vec<c_ulong> = method_configs.iter().cloned().collect();
+        let method_ids = method_configs.keys().cloned().collect();
         binder_interface_bpf_map.put(interface_name, &method_ids, UpdateMapElemFlags::Insert)?;
         trace!("wrote {interface_name}:{:?} to binder interface bpf map", method_ids);
     }
