@@ -1,7 +1,7 @@
 use crate::{
     bpf_handler::{get_current_timestamp_millis, DynamicInstrumentationPayloadIds, Handler},
     bridge_service::UprobeStatsBridgeService,
-    config_resolver::ResolvedTask,
+    config_resolver::{EventMode, ResolvedTask},
     string::bytes_as_str,
 };
 use anyhow::{bail, Result};
@@ -32,16 +32,24 @@ where
             name, item.code, item.calling_uid, item.timestamp_ns
         );
 
-        let Some(&flush) = task
+        let Some(method_config) = task
             .resolved_probes
             .iter()
             .filter_map(|probe| probe.binder_transaction_filters.get(name))
-            .find_map(|interface_map| interface_map.get(&item.code))
+            .find_map(|interface_config| interface_config.get_method(&item.code))
         else {
             bail!(
                 "No config found for binder transaction: interface_descriptor={}, code={}",
                 name,
-                item.code
+                item.code,
+            )
+        };
+
+        let Some(event_service_config) = &method_config.event_service_config else {
+            bail!(
+                "No event service config found for binder transaction: interface_descriptor={}, code={}",
+                name,
+                item.code,
             )
         };
 
@@ -50,7 +58,10 @@ where
             get_current_timestamp_millis(),
             name,
             item.code.try_into()?,
-            flush,
+            match event_service_config.mode {
+                EventMode::Flush => true,
+                EventMode::Buffer => false,
+            },
         )?;
 
         Ok(())
@@ -96,8 +107,8 @@ mod test {
     use crate::{
         bridge_service::test::TestUprobeStatsBridgeService,
         config_resolver::{
-            ExecutableMethodFileOffsets, MethodDescriptor, ResolvedProbe, ResolvedProcess,
-            ResolvedTask,
+            EventMode, EventServiceConfig, ExecutableMethodFileOffsets, InterfaceConfig,
+            MethodConfig, MethodDescriptor, ResolvedProbe, ResolvedProcess, ResolvedTask,
         },
     };
     use mockall::predicate::*;
@@ -116,7 +127,12 @@ mod test {
     const TEST_CALLING_UID: i32 = 1000;
     const TEST_TIMESTAMP_NS: u64 = 1_000_000_000;
 
-    fn create_task_with_filters(filters: HashMap<String, HashMap<c_ulong, bool>>) -> ResolvedTask {
+    fn make_method_config(flush: bool) -> MethodConfig {
+        let mode = if flush { EventMode::Flush } else { EventMode::Buffer };
+        MethodConfig { event_service_config: Some(EventServiceConfig { mode }), atom_config: None }
+    }
+
+    fn create_task_with_filters(filters: HashMap<String, InterfaceConfig>) -> ResolvedTask {
         ResolvedTask {
             id: 1,
             duration: Duration::from_secs(0),
@@ -212,9 +228,9 @@ mod test {
 
         let mut handler = create_handler(mock_bridge);
         let mut filters = HashMap::new();
-        let mut method_map = HashMap::new();
-        method_map.insert(TEST_CODE as c_ulong, false);
-        filters.insert(TEST_INTERFACE_NAME.to_string(), method_map);
+        let mut interface_config = InterfaceConfig::default();
+        interface_config.insert_method(TEST_CODE as c_ulong, make_method_config(false))?;
+        filters.insert(TEST_INTERFACE_NAME.to_string(), interface_config);
         let task = create_task_with_filters(filters);
 
         let transaction = create_binder_transaction(
@@ -236,9 +252,9 @@ mod test {
 
         let mut handler = create_handler(mock_bridge);
         let mut filters = HashMap::new();
-        let mut method_map = HashMap::new();
-        method_map.insert(TEST_CODE as c_ulong, false);
-        filters.insert("other.interface".to_string(), method_map);
+        let mut interface_config = InterfaceConfig::default();
+        interface_config.insert_method(TEST_CODE as c_ulong, make_method_config(false))?;
+        filters.insert("other.interface".to_string(), interface_config);
         let task = create_task_with_filters(filters);
 
         let transaction = create_binder_transaction(
@@ -260,9 +276,9 @@ mod test {
 
         let mut handler = create_handler(mock_bridge);
         let mut filters = HashMap::new();
-        let mut method_map = HashMap::new();
-        method_map.insert(999 as c_ulong, false);
-        filters.insert(TEST_INTERFACE_NAME.to_string(), method_map);
+        let mut interface_config = InterfaceConfig::default();
+        interface_config.insert_method(999 as c_ulong, make_method_config(false))?;
+        filters.insert(TEST_INTERFACE_NAME.to_string(), interface_config);
         let task = create_task_with_filters(filters);
 
         let transaction = create_binder_transaction(
@@ -284,9 +300,9 @@ mod test {
 
         let mut handler = create_handler(mock_bridge);
         let mut filters = HashMap::new();
-        let mut method_map = HashMap::new();
-        method_map.insert(TEST_CODE as c_ulong, true);
-        filters.insert(TEST_INTERFACE_NAME.to_string(), method_map);
+        let mut interface_config = InterfaceConfig::default();
+        interface_config.insert_method(TEST_CODE as c_ulong, make_method_config(true))?;
+        filters.insert(TEST_INTERFACE_NAME.to_string(), interface_config);
         let task = create_task_with_filters(filters);
 
         let transaction = create_binder_transaction(
