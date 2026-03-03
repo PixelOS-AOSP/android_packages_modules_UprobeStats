@@ -8,7 +8,10 @@ use std::time::Duration;
 use thiserror::Error;
 use uprobestats_proto::config::{
     uprobestats_config::{
-        task::{ProbeConfig, StatsdLoggingConfig, TargetProcessSelection},
+        task::{
+            binder_transaction_filter::MethodConfig, ProbeConfig, StatsdLoggingConfig,
+            TargetProcessSelection,
+        },
         Task,
     },
     UprobestatsConfig,
@@ -47,7 +50,7 @@ pub struct ResolvedProbe {
     /// Absolute path to the bpf program.
     pub bpf_program_path: String,
     /// Binder transaction filters (if applicable)
-    pub binder_transaction_filters: HashMap<String, HashSet<c_ulong>>,
+    pub binder_transaction_filters: HashMap<String, HashMap<c_ulong, bool>>,
 }
 
 /// Wraps a config error with the task ID (for the majority case that we at least know the task ID)
@@ -215,7 +218,7 @@ const BINDER_BPF_PROGRAM_NAME: &str = "prog_Binder_uprobe_exec_transact_internal
 fn resolve_binder_transaction_filters(
     probe: &ProbeConfig,
     bpf_name: &str,
-) -> Result<HashMap<String, HashSet<c_ulong>>> {
+) -> Result<HashMap<String, HashMap<c_ulong, bool>>> {
     match bpf_name {
         BINDER_BPF_PROGRAM_NAME => {
             ensure!(
@@ -232,24 +235,36 @@ fn resolve_binder_transaction_filters(
                     "binder_transaction_filter.interface_name must be non-empty"
                 );
                 ensure!(
-                    !filter.method_ids.is_empty(),
+                    !filter.method_configs.is_empty(),
                     "binder_transaction_filter.method_ids must be non-empty"
                 );
 
-                let methods_ids: HashSet<c_ulong> = filter
-                    .method_ids
+                let method_configs: HashMap<c_ulong, bool> = filter
+                    .method_configs
                     .iter()
-                    .map(|&x| Ok(x.try_into()?))
-                    .collect::<Result<HashSet<c_ulong>>>()?;
+                    .map(|MethodConfig { method_id, event_service_config, .. }| {
+                        let method_id: c_ulong = method_id
+                              .filter(|&id| id > 0)
+                              .map(|id| id.try_into())
+                              .transpose()?
+                              .ok_or_else(|| {
+                                  anyhow!("binder_transaction_filter.method_config.method_id is required and must be a positive integer")
+                              })?;
+
+                        let Some(event_service_config) = event_service_config.clone().into_option() else {
+                            bail!("binder_transaction_filter.method_config.event_service_config is required");
+                        };
+
+                        Ok((method_id, event_service_config.flush.unwrap_or(false)))
+                    })
+                    .collect::<Result<HashMap<c_ulong, bool>>>()?;
                 ensure!(
-                    methods_ids.len() == filter.method_ids.len(),
+                    method_configs.len() == filter.method_configs.len(),
                     "binder_transaction_filter.method_ids must be unique"
                 );
 
-                if filters.insert(interface_name.to_string(), methods_ids).is_some() {
-                    bail!(
-                        "binder_transaction_filter.interface_name must be unique, got {interface_name}",
-                    );
+                if filters.insert(interface_name.to_string(), method_configs).is_some() {
+                    bail!("binder_transaction_filter.interface_name must be unique",);
                 }
             }
             Ok(filters)
@@ -304,7 +319,10 @@ mod tests {
     use protobuf::Message;
     use uprobestats_proto::config::{
         uprobestats_config::{
-            task::{BinderTransactionFilter, ProbeConfig},
+            task::{
+                binder_transaction_filter::method_config::EventServiceConfig,
+                BinderTransactionFilter, ProbeConfig,
+            },
             Task,
         },
         UprobestatsConfig,
@@ -332,11 +350,26 @@ mod tests {
         ResolvedProcess { name: "test_process".to_string(), pid: 123, uid: 456 }
     }
 
-    fn make_filter(interface: Option<&str>, methods: Vec<i64>) -> BinderTransactionFilter {
+    fn make_filter(interface: Option<&str>, methods: Vec<(i64, bool)>) -> BinderTransactionFilter {
         let mut filter = BinderTransactionFilter::new();
         filter.interface_name = interface.map(|s| s.to_string());
-        filter.method_ids = methods;
+        filter.method_configs = methods
+            .into_iter()
+            .map(|(method_id, flush)| {
+                let mut event_service_config = EventServiceConfig::new();
+                event_service_config.flush = Some(flush);
+                MethodConfig {
+                    method_id: Some(method_id),
+                    event_service_config: Some(event_service_config).into(),
+                    ..MethodConfig::default()
+                }
+            })
+            .collect();
         filter
+    }
+
+    fn default_filter() -> BinderTransactionFilter {
+        make_filter(Some("test.interface"), vec![(1, false)])
     }
 
     fn assert_err_contains<T: std::fmt::Debug, E: std::fmt::Display + std::fmt::Debug>(
@@ -560,19 +593,47 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_success() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![make_filter(Some("test.interface"), vec![1, 2])];
+        probe.binder_transaction_filters =
+            vec![make_filter(Some("test.interface"), vec![(1, false), (2, true)])];
 
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME).unwrap();
         assert_eq!(result.len(), 1);
         let methods = result.get("test.interface").expect("interface not found");
         assert_eq!(methods.len(), 2);
-        assert!(methods.contains(&1));
-        assert!(methods.contains(&2));
+        assert_eq!(methods.get(&1), Some(&false));
+        assert_eq!(methods.get(&2), Some(&true));
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_negative_method_id() {
+        let mut probe = ProbeConfig::new();
+        probe.binder_transaction_filters =
+            vec![make_filter(Some("test.interface"), vec![(-1, false)])];
+
+        let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
+        assert_err_contains(
+            result,
+            "binder_transaction_filter.method_config.method_id is required and must be a positive integer",
+        );
+    }
+
+    #[test]
+    fn resolve_binder_transaction_filters_missing_event_service_config() {
+        let mut probe = ProbeConfig::new();
+        let mut filter = default_filter();
+        filter.method_configs[0].event_service_config = None.into();
+        probe.binder_transaction_filters = vec![filter];
+
+        let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
+        assert_err_contains(
+            result,
+            "binder_transaction_filter.method_config.event_service_config is required",
+        );
     }
 
     #[test]
     fn resolve_binder_transaction_filters_empty_filters_for_binder_bpf() {
-        let probe = ProbeConfig::new(); // No filters
+        let probe = ProbeConfig::new();
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
         assert_err_contains(result, "requires at least one binder_transaction_filter");
     }
@@ -580,7 +641,7 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_with_filters_for_non_binder_bpf() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![make_filter(Some("test.interface"), vec![1])];
+        probe.binder_transaction_filters = vec![default_filter()];
         let result = resolve_binder_transaction_filters(&probe, "other.bpf.o");
         assert_err_contains(result, "binder_transaction_filters is only supported for");
     }
@@ -588,7 +649,7 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_missing_interface_name() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![make_filter(None, vec![1])];
+        probe.binder_transaction_filters = vec![make_filter(None, vec![(1, false)])];
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
         assert_err_contains(result, "binder_transaction_filter.interface_name is required");
     }
@@ -596,7 +657,7 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_empty_interface_name() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![make_filter(Some(""), vec![1])];
+        probe.binder_transaction_filters = vec![make_filter(Some(""), vec![(1, false)])];
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
         assert_err_contains(result, "binder_transaction_filter.interface_name must be non-empty");
     }
@@ -604,10 +665,7 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_duplicate_interface_names() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![
-            make_filter(Some("test.interface"), vec![1]),
-            make_filter(Some("test.interface"), vec![2]),
-        ];
+        probe.binder_transaction_filters = vec![default_filter(), default_filter()];
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
         assert_err_contains(result, "binder_transaction_filter.interface_name must be unique");
     }
@@ -615,7 +673,8 @@ mod tests {
     #[test]
     fn resolve_binder_transaction_filters_duplicate_method_ids() {
         let mut probe = ProbeConfig::new();
-        probe.binder_transaction_filters = vec![make_filter(Some("test.interface"), vec![1, 1])];
+        probe.binder_transaction_filters =
+            vec![make_filter(Some("test.interface"), vec![(1, false), (1, false)])];
 
         let result = resolve_binder_transaction_filters(&probe, BINDER_BPF_PROGRAM_NAME);
         assert_err_contains(result, "binder_transaction_filter.method_ids must be unique");
