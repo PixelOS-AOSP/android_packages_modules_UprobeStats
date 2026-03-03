@@ -24,7 +24,7 @@ pub struct MethodDescriptor {
 
 /// Mirrors the same struct from `dynamic_instrumentation_manager`, so we don't need to depend on
 /// that crate here.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[allow(missing_docs)] // see frameworks/base/native/android/include_platform/android/dynamic_instrumentation_manager.h
 pub struct ExecutableMethodFileOffsets {
     pub container_path: String,

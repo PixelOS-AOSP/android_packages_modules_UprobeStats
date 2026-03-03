@@ -9,9 +9,14 @@ tasks {
     fully_qualified_parameters: ["int", "android.os.Parcel", "android.os.Parcel", "int", "int"]
     binder_transaction_filters {
       interface_name: "com.android.internal.app.IBatteryStats"
-      method_ids: [1]  # noteStartSensor
+      method_configs {
+        method_id: 1 # noteStartSensor
+        atom_config {
+          atom_id: 915
+          atom_field_positions: [CALLING_UID, CODE, KTIME_NS]
+        }
+      }
     }
-
   }
   bpf_maps: "map_Binder_output_buf"
   target_process_name: "system_server"
