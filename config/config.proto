@@ -107,14 +107,45 @@ message UprobestatsConfig {
         // Numeric ID of the method (a.k.a. transaction code)
         optional int64 method_id = 1;
         // Configuration for sending events to
-        // `DynamicInstrumentationEventService`.
+        // `DynamicInstrumentationEventService`. One of this or `atom_config` is
+        // required (and both are legal).
         optional EventServiceConfig event_service_config = 2;
+        // Configuration for sending atoms to statsd. One of this or
+        // `event_service_config` is required (and both are legal).
+        optional AtomConfig atom_config = 3;
 
         message EventServiceConfig {
           // Whether to flush the event to `DynamicInstrumentationEventService`,
           // e.g. bind to the client immediately to deliver this event, along
           // with any previously queued events.
           optional bool flush = 1;
+        }
+
+        message AtomConfig {
+          // ID of the atom to log. Required.
+          optional int32 atom_id = 1;
+          // Optional positions of any available data from the binder
+          // transaction instrumentation that can be written to fields of the
+          // atom. For example [CALLING_UID, INTERFACE_NAME] means write the
+          // calling UID to the first field of the atom, and the interface name
+          // to the second field of the atom.
+          repeated AtomFieldPosition atom_field_positions = 2;
+        }
+        enum AtomFieldPosition {
+          UNKNOWN = 0;
+          // The calling UID of the client process that initiated the binder
+          // transaction.
+          CALLING_UID = 1;
+          // The interface name of the binder transaction e.g. "com.android.
+          // internal.app.IBatteryStats".
+          INTERFACE_NAME = 2;
+          // The code of the binder transaction, which maps to a particular
+          // method on the AIDL interface.
+          CODE = 3;
+          // The ktime_ns that the transaction was initiated (nanoseconds since
+          // boot), as measured by the `bpf_ktime_get_ns` function in the
+          // related eBPF program.
+          KTIME_NS = 4;
         }
       }
     }
