@@ -139,7 +139,9 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler<AStatsEventWriter>>(&mut map);
     if cfg!(feature = "bridge-service") {
         if uprobestats_mainline_flags_rust::enable_binder_transaction() {
-            register_handler::<BinderTransactionHandler<DefaultUprobeStatsBridgeService>>(&mut map);
+            register_handler::<
+                BinderTransactionHandler<AStatsEventWriter, DefaultUprobeStatsBridgeService>,
+            >(&mut map);
         }
         if uprobestats_flags_rust::a11y_runtime_permission() {
             register_handler::<
