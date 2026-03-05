@@ -10,13 +10,14 @@ use log::{debug, error, trace};
 use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
 use std::{
     collections::{HashMap, HashSet},
-    ffi::c_ulong,
     os::fd::{AsRawFd, OwnedFd},
     sync::MutexGuard,
     thread,
 };
 use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
-use uprobestats_core::config_resolver::{self, ConfigError, ResolvedProbe, ResolvedTask};
+use uprobestats_core::config_resolver::{
+    self, ConfigError, InterfaceConfig, ResolvedProbe, ResolvedTask,
+};
 
 /// The global state for the uprobestats daemon process.
 /// - Some(ActiveState): tracks metadata when there are tasks currently running.
@@ -148,11 +149,11 @@ fn setup_binder_transaction_filters(
 }
 
 fn write_binder_transaction_filter_to_binder_bpf_map(
-    binder_transaction_filters: &HashMap<String, HashMap<c_ulong, bool>>,
+    binder_transaction_filters: &HashMap<String, InterfaceConfig>,
     binder_interface_bpf_map: &BinderInterfaceMapAccessor,
 ) -> Result<()> {
-    for (interface_name, method_configs) in binder_transaction_filters {
-        let method_ids = method_configs.keys().cloned().collect();
+    for (interface_name, interface_config) in binder_transaction_filters {
+        let method_ids = interface_config.method_ids();
         binder_interface_bpf_map.put(interface_name, &method_ids, UpdateMapElemFlags::Insert)?;
         trace!("wrote {interface_name}:{:?} to binder interface bpf map", method_ids);
     }

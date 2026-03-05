@@ -306,13 +306,24 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // See if the atom made it
-        // TODO(b/413078491): use the test infra from UprobeStats/test/cts to assert that the
-        // correct events were enqueued to the event service (although a unit test does already
-        // check this, and the self metrics test that the bpf was successfully attached and produced
-        // events).
+        TestUprobeStatsAtomReported reported =
+                mUprobeStatsTestRule
+                        .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
+                        .filter(atom -> atom.getSecondField() == 1) // Code == 1 (noteStartSensor)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("Atom 915 not found"));
+
+        assertThat(reported.getFirstField()).isGreaterThan(0); // Calling UID
+        assertThat(reported.getSecondField()).isEqualTo(1); // Code
+        assertThat(reported.getThirdField()).isGreaterThan(0); // KTIME_NS
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
                 BpfProgram.PROG_BINDER_UPROBE_EXEC_TRANSACT_INTERNAL,
                 BpfMapPath.BPF_MAP_PATH_BINDER_OUTPUT_BUF);
+
+        // TODO(b/413078491): use the test infra from UprobeStats/test/cts to assert that the
+        // correct events were enqueued to the event service (although a unit test does already
+        // check this, and the self metrics test that the bpf was successfully attached and produced
+        // events).
     }
 }
