@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -193,6 +194,20 @@ public class UprobeStatsTestRule implements TestRule {
             UprobeStatsBpfAttached.BpfProgram bpfProgram,
             UprobeStatsBpfMapPolled.BpfMapPath bpfMapPath)
             throws Exception {
+        assertSelfMetricsReported(
+                bpfProgram, bpfMapPath, atom -> assertThat(atom.getEventsCount()).isGreaterThan(0));
+    }
+
+    /**
+     * Asserts that the given BPF program and map path have been executed and polled by UprobeStats,
+     * as evidenced by the presence of the corresponding self-metrics atoms. Optionally asserts that
+     * the BPF map polled atom passes the given predicate.
+     */
+    public void assertSelfMetricsReported(
+            UprobeStatsBpfAttached.BpfProgram bpfProgram,
+            UprobeStatsBpfMapPolled.BpfMapPath bpfMapPath,
+            Consumer<UprobeStatsBpfMapPolled> bpfMapPolledConsumer)
+            throws Exception {
 
         long countServiceStarted =
                 getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsInvocation)
@@ -213,21 +228,22 @@ public class UprobeStatsTestRule implements TestRule {
         // BPF map path stats are not reported until uprobestats is done polling.
         waitForUprobeStatsToExit(60, TimeUnit.SECONDS);
 
-        Stream<UprobeStatsBpfMapPolled> afterTaskCompleteData =
-                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsBpfMapPolled);
-        long hasExpectedEvents =
-                afterTaskCompleteData
-                        .filter(
-                                atom ->
-                                        atom.getMapPath() == bpfMapPath
-                                                && atom.getEventsCount() > 0)
+        long countBpfMapPolled =
+                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsBpfMapPolled)
+                        .filter(atom -> atom.getMapPath() == bpfMapPath)
                         .count();
-        assertThat(hasExpectedEvents).isEqualTo(1);
+        assertThat(countBpfMapPolled).isEqualTo(1);
+
+        UprobeStatsBpfMapPolled expectedEvent =
+                getExtensionAtoms(UprobestatsExtensionAtoms.uprobeStatsBpfMapPolled)
+                        .findFirst()
+                        .get();
+        bpfMapPolledConsumer.accept(expectedEvent);
     }
 
     /**
-     * Returns a stream of atoms that have the given extension. This method will also query
-     * statsd for any new atoms that have been reported since the last time this method was called.
+     * Returns a stream of atoms that have the given extension. This method will also query statsd
+     * for any new atoms that have been reported since the last time this method was called.
      */
     public <T> Stream<T> getExtensionAtoms(Extension<Atom, T> extension) throws Exception {
         mReportedAtoms.addAll(getReportedAtomsAndDeleteReport());
