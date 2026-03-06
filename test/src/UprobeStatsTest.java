@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -325,5 +325,78 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         // correct events were enqueued to the event service (although a unit test does already
         // check this, and the self metrics test that the bpf was successfully attached and produced
         // events).
+    }
+
+    private static final String RESOLVE_PROCESS_FRAMEWORK_CONFIG =
+            "resolve_process_framework.textproto";
+    private static final String RESOLVE_PROCESS_CUSTOM_CONFIG = "resolve_process_custom.textproto";
+    private static final String RESOLVE_TESTAPK_PACKAGE_NAME =
+            "com.android.uprobestats.resolvetest";
+
+    @Test
+    public void apkProcess_frameworkMethod() throws Exception {
+        assumeTrue(CpuFeatures.isArm64(getDevice()));
+
+        try (AutoCloseable a =
+                DeviceUtils.withActivity(
+                        getDevice(),
+                        RESOLVE_TESTAPK_PACKAGE_NAME,
+                        "ResolveTestActivity",
+                        null,
+                        null)) {
+
+            mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
+                    getClass(),
+                    RESOLVE_PROCESS_FRAMEWORK_CONFIG,
+                    UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
+
+            // Allow UprobeStats/StatsD time to get set up and listening
+            RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+            // Send intent to trigger the framework method
+            getDevice()
+                    .executeShellCommand(
+                            "am start -n com.android.uprobestats.resolvetest/.ResolveTestActivity"
+                                    + " -e action"
+                                    + " com.android.uprobestats.resolvetest.TRIGGER_FRAMEWORK");
+
+            mUprobeStatsTestRule.assertSelfMetricsReported(
+                    BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                    BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                    atom -> assertThat(atom.getEventsCount()).isEqualTo(1));
+        }
+    }
+
+    @Test
+    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_APP_CLASSLOADER)
+    public void apkProcess_apkMethod() throws Exception {
+        assumeTrue(CpuFeatures.isArm64(getDevice()));
+
+        try (AutoCloseable a =
+                DeviceUtils.withActivity(
+                        getDevice(),
+                        RESOLVE_TESTAPK_PACKAGE_NAME,
+                        "ResolveTestActivity",
+                        null,
+                        null)) {
+
+            mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
+                    getClass(),
+                    RESOLVE_PROCESS_CUSTOM_CONFIG,
+                    UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
+
+            // Allow UprobeStats/StatsD time to get set up and listening
+            RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+            getDevice()
+                    .executeShellCommand(
+                            "am start -n com.android.uprobestats.resolvetest/.ResolveTestActivity"
+                                + " -e action com.android.uprobestats.resolvetest.TRIGGER_CUSTOM");
+
+            mUprobeStatsTestRule.assertSelfMetricsReported(
+                    BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                    BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                    atom -> assertThat(atom.getEventsCount()).isEqualTo(1));
+        }
     }
 }
