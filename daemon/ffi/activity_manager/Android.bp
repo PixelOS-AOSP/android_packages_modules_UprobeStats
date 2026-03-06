@@ -6,7 +6,10 @@ rust_library {
     ],
     crate_name: "activity_manager",
     srcs: ["activity_manager.rs"],
-    rustlibs: ["libactivity_manager_bindgen"],
+    rustlibs: [
+        "libactivity_manager_bindgen",
+        "libscopeguard",
+    ],
 }
 
 cc_library_shared {

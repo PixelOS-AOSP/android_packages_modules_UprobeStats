@@ -9,7 +9,7 @@ use activity_manager_bindgen::{
     ffi_AActivityManager_registerProcessObserver, AActivityManager_ForegroundActivitiesState,
     AActivityManager_ProcessObserver,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::ffi::{c_void, CStr};
 use std::ptr::NonNull;
 
@@ -197,4 +197,91 @@ unsafe extern "C" fn on_process_died_trampoline(pid: i32, uid: u32, cookie: *mut
     // SAFETY: This function must only called by the C API with the cookie we provided.
     let callbacks = unsafe { get_callbacks(cookie) };
     callbacks.on_process_died(pid, uid);
+}
+
+/// Gets the pid and uid for a specific running application process from ActivityManager.
+///
+/// Returns the first matching `(pid, uid)` combo for the given `target_process_name`.
+pub fn get_running_process_pid_uid(target_process_name: &str) -> Result<(i32, u32)> {
+    let mut out_list = std::ptr::null_mut();
+    // SAFETY:
+    // - We provide a valid mutable pointer to a null pointer.
+    // - The C API populates it with a pointer to a valid `ARunningAppProcessInfoList` object upon success, or leaves it as null.
+    // - If the pointer is non-null, we properly release it in the below guard by calling the C
+    //   destroy API.
+    let status = unsafe {
+        activity_manager_bindgen::ffi_AActivityManager_getRunningAppProcesses(&mut out_list)
+    };
+
+    if status != 0 {
+        bail!("Failed to get running app processes, status: {}", status);
+    }
+
+    if out_list.is_null() {
+        bail!("Running app processes list is unexpectedly null");
+    }
+
+    let _guard = scopeguard::guard(out_list, |out_list| {
+        // SAFETY:
+        // - We have checked that `out_list` is not null and it is a valid pointer returned
+        //   by `ffi_AActivityManager_getRunningAppProcesses`.
+        // - We pass it to the correct destroy function.
+        unsafe {
+            activity_manager_bindgen::ffi_AActivityManager_RunningAppProcessInfoList_destroy(
+                out_list,
+            );
+        }
+    });
+
+    // SAFETY:
+    // - We have checked that `out_list` is not null.
+    // - The C API guarantees that a non-null `out_list` pointer returned upon success is a valid pointer to `ARunningAppProcessInfoList`.
+    let size = unsafe {
+        activity_manager_bindgen::ffi_AActivityManager_RunningAppProcessInfoList_getSize(out_list)
+    };
+
+    for i in 0..size {
+        // SAFETY:
+        // - `out_list` is a valid pointer.
+        // - The index `i` is within the bounds [0, size) returned by the C `getSize` API.
+        // - The C API guarantees this returns a valid pointer to `ARunningAppProcessInfo` or null.
+        let info_ptr = unsafe {
+            activity_manager_bindgen::ffi_AActivityManager_RunningAppProcessInfoList_get(
+                out_list, i,
+            )
+        };
+
+        if info_ptr.is_null() {
+            continue;
+        }
+
+        // SAFETY:
+        // - `info_ptr` is checked to be non-null.
+        // - The C API guarantees that this pointer is valid for the lifetime of `out_list`.
+        let name_ptr = unsafe {
+            activity_manager_bindgen::ffi_ARunningAppProcessInfo_getProcessName(info_ptr)
+        };
+
+        if name_ptr.is_null() {
+            continue;
+        }
+
+        // SAFETY:
+        // - We have checked that `name_ptr` is not null.
+        // - The C API guarantees this is a valid pointer to a null-terminated C string.
+        let process_name = unsafe { CStr::from_ptr(name_ptr) };
+        if process_name.to_string_lossy() == target_process_name {
+            // SAFETY: `info_ptr` is non-null and valid for the lifetime of `out_list`.
+            let pid =
+                unsafe { activity_manager_bindgen::ffi_ARunningAppProcessInfo_getPid(info_ptr) };
+
+            // SAFETY: `info_ptr` is non-null and valid for the lifetime of `out_list`.
+            let uid =
+                unsafe { activity_manager_bindgen::ffi_ARunningAppProcessInfo_getUid(info_ptr) };
+
+            return Ok((pid, uid));
+        }
+    }
+
+    bail!("Process {} not found in running apps", target_process_name)
 }

@@ -1,10 +1,11 @@
 //! Utils for dealing with processes
-use activity_manager::{ProcessObserver, ProcessObserverCallbacks};
+use activity_manager::{get_running_process_pid_uid, ProcessObserver, ProcessObserverCallbacks};
 use anyhow::{anyhow, bail, Context, Result};
 use dynamic_instrumentation_manager::{
     ExecutableMethodFileOffsets, MethodDescriptor, TargetProcess,
 };
 use log::trace;
+use rustutils::android::users::AID_SYSTEM;
 use std::fs::{read, read_dir};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -37,9 +38,20 @@ impl ProcessResolver for ProcessResolverImpl {
                     "Process name is required for selection type {:?}",
                     target_process_selection
                 ))?;
-                let pid =
-                    get_pid(process_name).ok_or(anyhow!("Can't find pid for {}", process_name))?;
-                Ok(ResolvedProcess { pid, uid: 0, name: process_name.to_string() })
+
+                if process_name == "system_server" {
+                    let pid = get_pid(process_name)
+                        .ok_or(anyhow!("Can't find pid for {}", process_name))?;
+                    return Ok(ResolvedProcess {
+                        pid,
+                        uid: AID_SYSTEM.try_into()?,
+                        name: process_name.to_string(),
+                    });
+                }
+
+                let (pid, uid) = get_running_process_pid_uid(process_name)?;
+
+                Ok(ResolvedProcess { pid, uid: uid.try_into()?, name: process_name.to_string() })
             }
         }
     }
