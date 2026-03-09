@@ -48,12 +48,23 @@ const int kComponentNamePackageOffset = 12;
 // 12 + (4 * 10) + 8 = 60
 const int kCallingPackageStackFrameOffset = 60;
 
+const long kBindAllowBackgroundActivityStartsFlag =
+    0x00100000;  // Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS
+
 DEFINE_BPF_PROG("uprobe/bind_service_locked", AID_UPROBESTATS, AID_UPROBESTATS,
                 BPF_KPROBE2)
 (struct pt_regs *ctx) {
+  long bind_flags = ctx->regs[7];
+  bool has_bal_flag = (bind_flags & kBindAllowBackgroundActivityStartsFlag) != 0;
+  if (!has_bal_flag) {
+    return 0;
+  }
+
   struct BindServiceLocked *output = bpf_BindServiceLocked_output_buf_reserve();
   if (output == NULL)
     return 1;
+
+  output->bind_flags = bind_flags;
 
   void *intent_ptr = (void *)ctx->regs[4];
 
@@ -83,7 +94,6 @@ DEFINE_BPF_PROG("uprobe/bind_service_locked", AID_UPROBESTATS, AID_UPROBESTATS,
   recordString(intent_component_name_class_ptr, MAX_STRING_LENGTH,
                output->intent_component_name_class);
 
-  output->bind_flags = ctx->regs[7];
   recordStringArgFromSp(ctx, MAX_STRING_LENGTH, kCallingPackageStackFrameOffset,
                         output->calling_package);
 
