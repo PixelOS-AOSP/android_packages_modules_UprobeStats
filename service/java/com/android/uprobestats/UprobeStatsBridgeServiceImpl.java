@@ -143,6 +143,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                     synchronized (mEventBuffer) {
                         eventsToSend.addAll(mEventBuffer);
                         mEventBuffer.clear();
+                        mEventBuffer.notifyAll();
                     }
                     if (eventsToSend.isEmpty()) {
                         // buffer was already cleared by another flush
