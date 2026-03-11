@@ -28,10 +28,7 @@ java_test_host {
     defaults: ["uprobestats-test-defaults"],
     srcs: [
         "src/UprobeStatsTest.java",
-    ] + select(release_flag("RELEASE_UPROBESTATS_BRIDGE_SERVICE"), {
-        true: ["src/UprobeStatsTestBridgeService.java"],
-        false: [],
-    }),
+    ],
     libs: ["compatibility-host-util"],
     static_libs: [
         "android.security.flags-aconfig-java-host",
