@@ -183,53 +183,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             boolean success =
                     mContext.bindServiceAsUser(
                             new Intent().setComponent(dynamicInstrumentationEventConsumer),
-                            new ServiceConnection() {
-                                @Override
-                                public void onServiceConnected(
-                                        ComponentName name, IBinder service) {
-                                    IUprobeStatsEventListener eventListener =
-                                            IUprobeStatsEventListener.Stub.asInterface(service);
-                                    try {
-                                        eventListener.onEvent(events);
-                                        if (DEBUG) {
-                                            Slog.d(TAG, "Sent " + events.size() + " events");
-                                            int count = 0;
-                                            for (Event event : events) {
-                                                Parcel parcel = Parcel.obtain();
-                                                event.writeToParcel(parcel, 0);
-                                                int sizeInBytes = parcel.dataSize();
-                                                Slog.d(
-                                                        TAG,
-                                                        "Event "
-                                                                + count
-                                                                + " Payload ID: "
-                                                                + event.payloadId
-                                                                + " and size: "
-                                                                + sizeInBytes
-                                                                + " bytes");
-                                                parcel.recycle();
-                                                count++;
-                                            }
-                                        }
-                                    } catch (RemoteException e) {
-                                        Slog.e(TAG, "Failed to send events", e);
-                                    }
-                                    mContext.unbindService(this);
-                                }
-
-                                @Override
-                                public void onServiceDisconnected(ComponentName name) {
-                                    Slog.d(TAG, "onServiceDisconnected");
-                                }
-
-                                @Override
-                                public void onNullBinding(ComponentName name) {
-                                    Slog.e(
-                                            TAG,
-                                            "null binding from dynamic instrumentation consumer"
-                                                    + " service");
-                                }
-                            },
+                            new EventSenderConnection(mContext, events),
                             Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
                             UserHandle.SYSTEM);
             if (!success) {
@@ -237,6 +191,70 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             }
         } finally {
             Binder.restoreCallingIdentity(callerToken);
+        }
+    }
+
+    private static class EventSenderConnection implements ServiceConnection {
+        private final Context mContext;
+        private List<Event> mEvents;
+
+        EventSenderConnection(Context context, List<Event> events) {
+            mContext = context;
+            mEvents = events;
+        }
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            IUprobeStatsEventListener eventListener =
+                    IUprobeStatsEventListener.Stub.asInterface(service);
+            try {
+                eventListener.onEvent(mEvents);
+                if (DEBUG) {
+                    Slog.d(TAG, "Sent " + mEvents.size() + " events");
+                    int count = 0;
+                    for (Event event : mEvents) {
+                        Parcel parcel = Parcel.obtain();
+                        event.writeToParcel(parcel, 0);
+                        int sizeInBytes = parcel.dataSize();
+                        Slog.d(
+                                TAG,
+                                "Event "
+                                        + count
+                                        + " Payload ID: "
+                                        + event.payloadId
+                                        + " and size: "
+                                        + sizeInBytes
+                                        + " bytes");
+                        parcel.recycle();
+                        count++;
+                    }
+                }
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Failed to send events", e);
+            } finally {
+                cleanup();
+                mContext.unbindService(this);
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            if (DEBUG) {
+                Slog.d(TAG, "onServiceDisconnected");
+            }
+        }
+
+        @Override
+        public void onNullBinding(ComponentName name) {
+            Slog.e(TAG, "null binding from dynamic instrumentation consumer service");
+            cleanup();
+            mContext.unbindService(this);
+        }
+
+        private void cleanup() {
+            if (mEvents != null) {
+                mEvents = null;
+            }
         }
     }
 
