@@ -2,6 +2,7 @@
 use crate::atom::CodegenAtomWriter;
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use crate::device_properties::DefaultDeviceProperties;
+use crate::is_at_least_cinnamon_bun;
 use anyhow::{bail, Result};
 use log::{debug, error, trace};
 use statssocket::AStatsEventWriter;
@@ -137,7 +138,7 @@ static HANDLER_REGISTRY: LazyLock<HandlerRegistry> = LazyLock::new(|| {
     register_handler::<CallResultHandler<AStatsEventWriter>>(&mut map);
     register_handler::<SetUidTempAllowlistStateRecordHandler<AStatsEventWriter>>(&mut map);
     register_handler::<UpdateDeviceIdleTempAllowlistRecordHandler<AStatsEventWriter>>(&mut map);
-    if cfg!(feature = "bridge-service") {
+    if is_at_least_cinnamon_bun() {
         if uprobestats_mainline_flags_rust::enable_binder_transaction() {
             register_handler::<
                 BinderTransactionHandler<AStatsEventWriter, DefaultUprobeStatsBridgeService>,

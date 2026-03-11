@@ -56,7 +56,9 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     private final Context mContext;
     private final HandlerThread mHandlerThread;
     private final Handler mFlushHandler;
-    private static final int EVENT_BUFFER_CAPACITY = 1024;
+    // This value needs to balance the cost of keeping events in memory versus the cost of binding
+    // to the consumer service (and likely waking the consuming app). See b/489295271 for context.
+    private static final int EVENT_BUFFER_CAPACITY = 128;
     private static final long FLUSH_TIMEOUT = Duration.ofHours(12).toMillis();
     private static final long TEST_FLUSH_TIMEOUT = Duration.ofSeconds(10).toMillis();
     private final ArrayDeque<Event> mEventBuffer = new ArrayDeque<>(EVENT_BUFFER_CAPACITY);
@@ -141,6 +143,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                     synchronized (mEventBuffer) {
                         eventsToSend.addAll(mEventBuffer);
                         mEventBuffer.clear();
+                        mEventBuffer.notifyAll();
                     }
                     if (eventsToSend.isEmpty()) {
                         // buffer was already cleared by another flush
@@ -168,9 +171,11 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
             return;
         }
         if (DEBUG) {
-            Slog.d(TAG, "Dynamic instrumentation consumer service "
-                    + dynamicInstrumentationEventConsumer.flattenToShortString()
-                    + " configured.");
+            Slog.d(
+                    TAG,
+                    "Dynamic instrumentation consumer service "
+                            + dynamicInstrumentationEventConsumer.flattenToShortString()
+                            + " configured.");
         }
 
         final long callerToken = Binder.clearCallingIdentity();
@@ -222,7 +227,7 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
                                     Slog.e(
                                             TAG,
                                             "null binding from dynamic instrumentation consumer"
-                                                + " service");
+                                                    + " service");
                                 }
                             },
                             Context.BIND_AUTO_CREATE | Context.BIND_INCLUDE_CAPABILITIES,
@@ -240,14 +245,16 @@ public final class UprobeStatsBridgeServiceImpl extends IUprobeStatsBridgeServic
     public void enqueueEvent(Event event, boolean flush) {
         mContext.enforceCallingPermission(
                 DYNAMIC_INSTRUMENTATION, "Caller must have DYNAMIC_INSTRUMENTATION permission");
-        boolean bufferFull;
+        final int size;
         synchronized (mEventBuffer) {
             mEventBuffer.add(event);
-            bufferFull = mEventBuffer.size() >= EVENT_BUFFER_CAPACITY;
+            size = mEventBuffer.size();
         }
+        final boolean bufferFull = size >= EVENT_BUFFER_CAPACITY;
+        final boolean firstEvent = size == 1;
         if (flush || bufferFull) {
             mFlushHandler.post(mFlushRunnable);
-        } else {
+        } else if (firstEvent) {
             mFlushHandler.postDelayed(mFlushRunnable, flushTimeout);
         }
     }
