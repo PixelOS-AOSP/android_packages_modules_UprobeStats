@@ -368,7 +368,6 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    @RequiresFlagsEnabled(android.security.Flags.FLAG_DYNAMIC_INSTRUMENTATION_APP_CLASSLOADER)
     public void apkProcess_apkMethod() throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
 

@@ -34,7 +34,6 @@ java_test_host {
     }),
     libs: ["compatibility-host-util"],
     static_libs: [
-        "android.security.flags-aconfig-java-host",
         "flag-junit-host",
         "art_flags_uprobestats_java_lib",
         "uprobestats_mainline_flags_java_lib_test_host",
