@@ -2,7 +2,7 @@
 use anyhow::{anyhow, Result};
 use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
-use log::{error, info, trace, LevelFilter};
+use log::{error, trace, LevelFilter};
 use rustutils::android::system_properties;
 use statslog_uprobestats::uprobe_stats_invocation;
 use std::{
@@ -14,7 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use uprobestats_android::{
-    is_user_build, task,
+    is_at_least_cinnamon_bun, is_user_build, task,
     uprobestats_service::{UprobeStatsService, UPROBESTATS_SERVICE_NAME},
 };
 use uprobestats_service_aidl::aidl::com::android::uprobestats::IUprobeStatsService::BnUprobeStatsService;
@@ -59,14 +59,11 @@ fn main_impl() -> Result<()> {
 
 fn handle_tasks() -> Result<()> {
     let state = Arc::new(Mutex::new(None));
-    let service = BnUprobeStatsService::new_binder(
-        UprobeStatsService::new(state.clone()),
-        BinderFeatures::default(),
-    );
-    // TODO(b/480959242): Remove this fallback once SDK 37 is available.
-    if register_lazy_service(UPROBESTATS_SERVICE_NAME, service.as_binder()).is_err() {
-        info!("Failed to register service - falling back to legacy file-based config");
 
+    // If the SDK level is less than 37, uprobestats is not allowed to run its binder service.
+    // Thus, the client writes the config to the expected file
+    // location and starts the uprobestats daemon via property.
+    if !is_at_least_cinnamon_bun() {
         let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
         let task = task::resolve_config(&config_bytes)?;
 
@@ -78,6 +75,13 @@ fn handle_tasks() -> Result<()> {
 
         return Ok(());
     };
+
+    let service = BnUprobeStatsService::new_binder(
+        UprobeStatsService::new(state.clone()),
+        BinderFeatures::default(),
+    );
+
+    register_lazy_service(UPROBESTATS_SERVICE_NAME, service.as_binder())?;
 
     trace!("registered service - joining thread pool");
     ProcessState::join_thread_pool();
