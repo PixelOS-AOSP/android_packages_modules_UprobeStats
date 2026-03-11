@@ -19,4 +19,9 @@
         <option name="test-file-name" value="BitmapTestApp.apk" />
     </target_preparer>
 
+    <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
+        <option name="cleanup-apks" value="true" />
+        <option name="test-file-name" value="ResolveTestApk.apk" />
+    </target_preparer>
+
 </configuration>

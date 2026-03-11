@@ -1,0 +1,13 @@
+# proto-file: config.proto
+# proto-message: UprobestatsConfig
+
+tasks {
+  probe_configs {
+    bpf_name: "prog_GenericInstrumentation_uprobe_call_timestamp"
+    fully_qualified_class_name: "android.app.ActivityManager"
+    method_name: "isUserAMonkey"
+  }
+  bpf_maps: "map_GenericInstrumentation_call_timestamp_buf"
+  target_process_name: "com.android.uprobestats.resolvetest"
+  duration_seconds: 5
+}

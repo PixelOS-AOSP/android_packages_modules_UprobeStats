@@ -49,6 +49,21 @@ DEFINE_BPF_PROG("uprobe/call_detail", AID_UPROBESTATS, AID_UPROBESTATS,
   return 0;
 }
 
+DEFINE_BPF_PROG("uprobe/call_timestamp", AID_UPROBESTATS, AID_UPROBESTATS,
+                BPF_KPROBE0)
+() {
+  struct CallTimestamp result;
+  result.event = 0;
+  result.timestampNs = bpf_ktime_get_ns();
+  struct CallTimestamp *output = bpf_call_timestamp_buf_reserve();
+  if (output == NULL) {
+    return 1;
+  }
+  (*output) = result;
+  bpf_call_timestamp_buf_submit(output);
+  return 0;
+}
+
 DEFINE_BPF_PROG("uprobe/call_timestamp_1", AID_UPROBESTATS, AID_UPROBESTATS,
                 BPF_KPROBE1)
 () {
