@@ -41,15 +41,13 @@ void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
           android::uprobestats::stats::
               UPROBE_STATS_INTERNAL_ERROR__ERROR_TYPE__ERROR_TYPE_SERVICE_STARTUP_FAILED,
           0 /* task_id - not applicable here */
-        );
+      );
     };
 
-    ndk::SpAIBinder binder =
-        ndk::SpAIBinder(AServiceManager_waitForService(kUprobeStatsServiceName));
-    // TODO(b/480959242): Remove this fallback once SDK 37 is available.
-    if (binder == nullptr) {
-      LOG(WARNING) << "Failed to get uprobestats service, falling back to file "
-                      "based config";
+    // If the SDK level is less than 37, the binder service to start uprobestats
+    // is not available. Thus, start via writing the config to the expected file
+    // location and starting the uprobestats daemon via property.
+    if (!__builtin_available(android 37, *)) {
       const char* filename = "/data/misc/uprobestats-configs/config";
       android::base::WriteStringToFile(
           std::string(reinterpret_cast<const char*>(config_vec.data()),
@@ -57,6 +55,13 @@ void AUprobestatsClient_startUprobestats(const uint8_t* config, int64_t size) {
           filename);
       chmod(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
       android::base::SetProperty("ctl.start", "uprobestats");
+      return;
+    }
+
+    ndk::SpAIBinder binder = ndk::SpAIBinder(
+        AServiceManager_waitForService(kUprobeStatsServiceName));
+    if (binder == nullptr) {
+      LOG(ERROR) << "Null binder for uprobestats service";
       log_startup_error();
       return;
     }
