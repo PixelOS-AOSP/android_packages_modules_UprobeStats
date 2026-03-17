@@ -23,8 +23,8 @@ cc_library_headers {
     recovery_available: true,
     host_supported: true,
     native_bridge_supported: true,
-    header_libs: ["uprobestats_bpf_syscall_wrappers"],
-    export_header_lib_headers: ["uprobestats_bpf_syscall_wrappers"],
+    header_libs: ["bpf_syscall_wrappers"],
+    export_header_lib_headers: ["bpf_syscall_wrappers"],
     export_include_dirs: ["include"],
     cflags: [
         "-Wall",
