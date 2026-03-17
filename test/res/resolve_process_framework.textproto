@@ -8,6 +8,6 @@ tasks {
     method_name: "isUserAMonkey"
   }
   bpf_maps: "map_GenericInstrumentation_call_timestamp_buf"
-  target_process_name: "com.android.uprobestats.resolvetest"
+  target_process_name: "com.android.uprobestats.testapk"
   duration_seconds: 5
 }

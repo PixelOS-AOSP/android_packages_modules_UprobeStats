@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.uprobestats.resolvetest;
+package com.android.uprobestats.testapk;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -23,12 +23,12 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
 
-public class ResolveTestActivity extends Activity {
-    private static final String TAG = "ResolveTestActivity";
+public class InstrumentationTestActivity extends Activity {
+    private static final String TAG = "InstrumentationTestActivity";
     public static final String ACTION_TRIGGER_FRAMEWORK =
-            "com.android.uprobestats.resolvetest.TRIGGER_FRAMEWORK";
+            "com.android.uprobestats.testapk.TRIGGER_FRAMEWORK";
     public static final String ACTION_TRIGGER_CUSTOM =
-            "com.android.uprobestats.resolvetest.TRIGGER_CUSTOM";
+            "com.android.uprobestats.testapk.TRIGGER_CUSTOM";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

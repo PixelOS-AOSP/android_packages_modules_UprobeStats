@@ -334,8 +334,13 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     private static final String RESOLVE_PROCESS_FRAMEWORK_CONFIG =
             "resolve_process_framework.textproto";
     private static final String RESOLVE_PROCESS_CUSTOM_CONFIG = "resolve_process_custom.textproto";
-    private static final String RESOLVE_TESTAPK_PACKAGE_NAME =
-            "com.android.uprobestats.resolvetest";
+    private static final String TEST_APK_PACKAGE_NAME = "com.android.uprobestats.testapk";
+    private static final String TEST_APK_ACTIVITY_NAME = "InstrumentationTestActivity";
+    private static final String TEST_APK_COMPONENT_NAME =
+            TEST_APK_PACKAGE_NAME + "/." + TEST_APK_ACTIVITY_NAME;
+    private static final String ACTION_TRIGGER_FRAMEWORK =
+            TEST_APK_PACKAGE_NAME + ".TRIGGER_FRAMEWORK";
+    private static final String ACTION_TRIGGER_CUSTOM = TEST_APK_PACKAGE_NAME + ".TRIGGER_CUSTOM";
 
     @Test
     @RequiresFlagsEnabled(FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES)
@@ -453,11 +458,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
         try (AutoCloseable a =
                 DeviceUtils.withActivity(
-                        getDevice(),
-                        RESOLVE_TESTAPK_PACKAGE_NAME,
-                        "ResolveTestActivity",
-                        null,
-                        null)) {
+                        getDevice(), TEST_APK_PACKAGE_NAME, TEST_APK_ACTIVITY_NAME, null, null)) {
 
             mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
                     getClass(),
@@ -470,9 +471,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
             // Send intent to trigger the framework method
             getDevice()
                     .executeShellCommand(
-                            "am start -n com.android.uprobestats.resolvetest/.ResolveTestActivity"
-                                    + " -e action"
-                                    + " com.android.uprobestats.resolvetest.TRIGGER_FRAMEWORK");
+                            "am start -n "
+                                    + TEST_APK_COMPONENT_NAME
+                                    + " -e action "
+                                    + ACTION_TRIGGER_FRAMEWORK);
 
             mUprobeStatsTestRule.assertSelfMetricsReported(
                     BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
@@ -487,11 +489,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
         try (AutoCloseable a =
                 DeviceUtils.withActivity(
-                        getDevice(),
-                        RESOLVE_TESTAPK_PACKAGE_NAME,
-                        "ResolveTestActivity",
-                        null,
-                        null)) {
+                        getDevice(), TEST_APK_PACKAGE_NAME, TEST_APK_ACTIVITY_NAME, null, null)) {
 
             mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
                     getClass(),
@@ -503,8 +501,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
             getDevice()
                     .executeShellCommand(
-                            "am start -n com.android.uprobestats.resolvetest/.ResolveTestActivity"
-                                + " -e action com.android.uprobestats.resolvetest.TRIGGER_CUSTOM");
+                            "am start -n "
+                                    + TEST_APK_COMPONENT_NAME
+                                    + " -e action "
+                                    + ACTION_TRIGGER_CUSTOM);
 
             mUprobeStatsTestRule.assertSelfMetricsReported(
                     BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
