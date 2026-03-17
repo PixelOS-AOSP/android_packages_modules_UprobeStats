@@ -19,46 +19,18 @@ package {
 
 cc_library_headers {
     name: "uprobestats_bpf_headers",
-    vendor_available: true,
-    recovery_available: true,
     host_supported: true,
-    native_bridge_supported: true,
-    header_libs: ["bpf_syscall_wrappers"],
-    export_header_lib_headers: ["bpf_syscall_wrappers"],
+    header_libs: ["bpf_headers"],
+    export_header_lib_headers: ["bpf_headers"],
     export_include_dirs: ["include"],
     cflags: [
         "-Wall",
         "-Werror",
     ],
-    sdk_version: "35",
-    min_sdk_version: "35",
+    sdk_version: "current",
+    min_sdk_version: "apex_inherit",
     apex_available: [
         "//apex_available:platform",
         "com.android.uprobestats",
-    ],
-}
-
-cc_test {
-    name: "uprobestats_libbpf_android_test",
-    srcs: [
-        "BpfMapTest.cpp",
-        "BpfRingbufTest.cpp",
-    ],
-    defaults: ["bpf_cc_defaults"],
-    cflags: [
-        "-Wno-unused-variable",
-        "-Wno-sign-compare",
-    ],
-    header_libs: ["uprobestats_bpf_headers"],
-    static_libs: ["libgmock"],
-    shared_libs: [
-        "libbase",
-        "liblog",
-        "libutils",
-    ],
-    require_root: true,
-    test_suites: [
-        "general-tests",
-        "mts-uprobestats",
     ],
 }
