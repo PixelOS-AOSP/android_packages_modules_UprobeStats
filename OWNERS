@@ -3,3 +3,6 @@ yutingtseng@google.com
 mfasheh@google.com
 mattgilbride@google.com
 haok@google.com
+
+# For bpf related refactoring
+file:platform/system/bpf:main:/OWNERS_bpf #{LAST_RESORT_SUGGESTION}

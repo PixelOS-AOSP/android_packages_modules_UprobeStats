@@ -11,9 +11,9 @@
      limitations under the License.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="com.android.uprobestats.resolvetest">
+        package="com.android.uprobestats.testapk">
     <application>
-        <activity android:name=".ResolveTestActivity"
+        <activity android:name=".InstrumentationTestActivity"
              android:exported="true"
              android:launchMode="singleTop"/>
     </application>

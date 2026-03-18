@@ -4,10 +4,10 @@
 tasks {
   probe_configs {
     bpf_name: "prog_GenericInstrumentation_uprobe_call_timestamp"
-    fully_qualified_class_name: "com.android.uprobestats.resolvetest.ResolveTestActivity"
+    fully_qualified_class_name: "com.android.uprobestats.testapk.InstrumentationTestActivity"
     method_name: "customMethodToTrace"
   }
   bpf_maps: "map_GenericInstrumentation_call_timestamp_buf"
-  target_process_name: "com.android.uprobestats.resolvetest"
+  target_process_name: "com.android.uprobestats.testapk"
   duration_seconds: 5
 }
