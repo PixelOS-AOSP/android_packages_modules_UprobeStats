@@ -82,6 +82,7 @@ struct UpdateDeviceIdleTempAllowlistRecord {
 };
 
 struct BindServiceLocked {
+  int error_code;
   char intent_action[MAX_STRING_LENGTH];
   char intent_package[MAX_STRING_LENGTH];
   char intent_component_name_package[MAX_STRING_LENGTH];
@@ -91,6 +92,7 @@ struct BindServiceLocked {
 };
 
 struct ComponentEnabledSetting {
+  int error_code;
   char package_name[MAX_STRING_LENGTH];
   char class_name[MAX_STRING_LENGTH];
   int new_state;
