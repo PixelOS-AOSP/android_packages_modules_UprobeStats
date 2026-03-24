@@ -3,7 +3,7 @@ use crate::{
     bpf_handler::Handler,
     bridge_service::UprobeStatsBridgeService,
     config_resolver::ResolvedTask,
-    string::bytes_as_str,
+    string::bytes_as_nonempty_str,
 };
 use anyhow::{anyhow, bail, Result};
 use log::{debug, trace};
@@ -107,8 +107,8 @@ fn handle_permission_grant_event<B: UprobeStatsBridgeService>(
     timestamp_ns: u64,
 ) -> Result<Option<Event>> {
     // permission grant event
-    let package_name = bytes_as_str(&data.package_name)?;
-    let permission_name = bytes_as_str(&data.permission_name)?;
+    let package_name = bytes_as_nonempty_str(&data.package_name)?;
+    let permission_name = bytes_as_nonempty_str(&data.permission_name)?;
 
     trace!("package_name={package_name}, permission_name={permission_name}");
 
@@ -996,6 +996,21 @@ mod test {
             ],
         };
         assert_eq!(atom_b, expected_b);
+
+        Ok(())
+    }
+
+    #[test]
+    fn accessibility_event_empty_fields_fail() -> Result<()> {
+        let (mut handler, task) = setup_handler_and_task(MockIUprobeStatsBridgeService::new());
+
+        // empty package_name
+        let data = create_permission_event("", TEST_PERMISSION_NAME, Duration::from_secs(1));
+        assert!(handler.on_item(&task, &data).is_err());
+
+        // empty permission_name
+        let data = create_permission_event(TEST_PACKAGE_NAME, "", Duration::from_secs(1));
+        assert!(handler.on_item(&task, &data).is_err());
 
         Ok(())
     }

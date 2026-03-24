@@ -4,9 +4,9 @@ use crate::{
     bridge_service::UprobeStatsBridgeService,
     config_resolver::ResolvedTask,
     device_properties::DeviceProperties,
-    string::bytes_as_str,
+    string::{bytes_as_nonempty_str, bytes_as_str},
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use log::{debug, trace};
 use std::ffi::c_long;
 use uprobestats_bpf_structs::{BindServiceLocked, ComponentEnabledSetting};
@@ -36,8 +36,8 @@ where
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_ComponentEnabledSetting_output_buf";
     type T = ComponentEnabledSetting;
     fn on_item(&mut self, _task: &ResolvedTask, data: &ComponentEnabledSetting) -> Result<()> {
-        let package_name = bytes_as_str(&data.package_name)?;
-        let class_name = bytes_as_str(&data.class_name)?;
+        let package_name = bytes_as_nonempty_str(&data.package_name)?;
+        let class_name = bytes_as_nonempty_str(&data.class_name)?;
         let new_state = data.new_state;
         let calling_package_name = bytes_as_str(&data.calling_package_name)?;
 
@@ -91,7 +91,7 @@ where
                 is_launcher_activity,
             })?;
         }
-        if is_launcher_activity {
+        if is_launcher_activity && !calling_package_name.is_empty() {
             let calling_uid = if calling_package_name == "shell" {
                 // special case for shell, needs com.android prepended
                 service.getUidForPackage("com.android.shell")?
@@ -167,16 +167,26 @@ where
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_BindServiceLocked_output_buf";
     type T = BindServiceLocked;
     fn on_item(&mut self, _task: &ResolvedTask, data: &BindServiceLocked) -> Result<()> {
+        let calling_package = bytes_as_str(&data.calling_package)?;
         let intent_package = bytes_as_str(&data.intent_package)?;
         let intent_action = bytes_as_str(&data.intent_action)?;
         let intent_component_name_package = bytes_as_str(&data.intent_component_name_package)?;
         let intent_component_name_class = bytes_as_str(&data.intent_component_name_class)?;
         let flags = data.bind_flags;
-        let calling_package = bytes_as_str(&data.calling_package)?;
         let has_bal_flag = (data.bind_flags & BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS) != 0;
         debug!(
             "BindServiceLocked: intent_package={intent_package:?}, intent_action={intent_action:?}, intent_component_name_package={intent_component_name_package:?}, intent_component_name_class={intent_component_name_class:?} flags={flags:?}, calling_package={calling_package:?}, has_bal_flag={has_bal_flag}"
         );
+
+        if calling_package.is_empty()
+            && intent_package.is_empty()
+            && intent_action.is_empty()
+            && intent_component_name_package.is_empty()
+            && intent_component_name_class.is_empty()
+        {
+            bail!("BindServiceLocked: all strings are empty");
+        }
+
         if !has_bal_flag {
             return Ok(());
         }
@@ -228,18 +238,20 @@ where
             })?;
         }
 
-        let service = self.bridge_service.get()?;
-        let binder_uid = service.getUidForPackage(calling_package)?;
-        let bindee_uid = if intent_package.is_empty() {
-            service.getUidForPackage(intent_component_name_package)?
-        } else {
-            service.getUidForPackage(intent_package)?
-        };
+        let binder_package = calling_package;
+        let bindee_package =
+            if !intent_package.is_empty() { intent_package } else { intent_component_name_package };
 
-        self.writer.write(CodegenAtom::BindServiceLockedWithBalFlagsUidsReported {
-            binder_uid,
-            bindee_uid,
-        })?;
+        if !binder_package.is_empty() && !bindee_package.is_empty() {
+            let service = self.bridge_service.get()?;
+            let binder_uid = service.getUidForPackage(binder_package)?;
+            let bindee_uid = service.getUidForPackage(bindee_package)?;
+
+            self.writer.write(CodegenAtom::BindServiceLockedWithBalFlagsUidsReported {
+                binder_uid,
+                bindee_uid,
+            })?;
+        }
 
         Ok(())
     }
@@ -771,6 +783,100 @@ mod test {
         } else {
             panic!("Wrong atom written: {:?}", atom);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn component_enabled_setting_empty_fields_fail() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        mock_bridge.expect_isLauncherActivity().returning(|_, _, _| Ok(false));
+
+        let (mut handler, task) = setup_component_handler(mock_bridge, false);
+
+        // empty package_name
+        let data =
+            create_component_enabled_setting("", "cls", COMPONENT_ENABLED_STATE_DISABLED, "caller");
+        assert!(handler.on_item(&task, &data).is_err());
+
+        // empty class_name
+        let data =
+            create_component_enabled_setting("pkg", "", COMPONENT_ENABLED_STATE_DISABLED, "caller");
+        assert!(handler.on_item(&task, &data).is_err());
+
+        // empty calling_package_name is allowed
+        let data =
+            create_component_enabled_setting("pkg", "cls", COMPONENT_ENABLED_STATE_DISABLED, "");
+        assert!(handler.on_item(&task, &data).is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn bind_service_locked_empty_calling_package_no_uid_atom() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        // expect_getUidForPackage should NOT be called.
+        expect_enqueue_bind_service_with_bal_event(&mut mock_bridge, "", "pkg", "", "comp_pkg", "");
+
+        let (mut handler, task) =
+            setup_bind_service_handler(mock_bridge, false /* is_user_build */);
+        let data = create_bind_service_locked(
+            "pkg",
+            "comp_pkg",
+            "",
+            BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+            None,
+            None,
+        );
+        handler.on_item(&task, &data)?;
+
+        // Only BindServiceLockedWithBalFlagsReported should be written.
+        assert_eq!(handler.writer.written.len(), 1);
+        if let CodegenAtom::BindServiceLockedWithBalFlagsReported { .. } =
+            &handler.writer.written[0]
+        {
+            // correct type
+        } else {
+            panic!("Wrong atom written: {:?}", handler.writer.written[0]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bind_service_locked_empty_intent_packages_no_uid_atom() -> Result<()> {
+        let mut mock_bridge = MockIUprobeStatsBridgeService::new();
+        // expect_getUidForPackage should NOT be called.
+        expect_enqueue_bind_service_with_bal_event(&mut mock_bridge, "caller", "", "", "", "");
+
+        let (mut handler, task) =
+            setup_bind_service_handler(mock_bridge, false /* is_user_build */);
+        let data = create_bind_service_locked(
+            "",
+            "",
+            "caller",
+            BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+            None,
+            None,
+        );
+        handler.on_item(&task, &data)?;
+
+        // Only BindServiceLockedWithBalFlagsReported should be written.
+        assert_eq!(handler.writer.written.len(), 1);
+        if let CodegenAtom::BindServiceLockedWithBalFlagsReported { .. } =
+            &handler.writer.written[0]
+        {
+            // correct type
+        } else {
+            panic!("Wrong atom written: {:?}", handler.writer.written[0]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bind_service_locked_all_empty_fails() -> Result<()> {
+        let (mut handler, task) =
+            setup_bind_service_handler(MockIUprobeStatsBridgeService::new(), false);
+        let data = create_bind_service_locked("", "", "", 0, None, None);
+        assert!(handler.on_item(&task, &data).is_err());
         Ok(())
     }
 }
