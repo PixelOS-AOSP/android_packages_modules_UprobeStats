@@ -36,6 +36,9 @@ where
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_ComponentEnabledSetting_output_buf";
     type T = ComponentEnabledSetting;
     fn on_item(&mut self, _task: &ResolvedTask, data: &ComponentEnabledSetting) -> Result<()> {
+        if data.error_code < 0 {
+            bail!("ComponentEnabledSetting BPF error: {}", data.error_code);
+        }
         let package_name = bytes_as_nonempty_str(&data.package_name)?;
         let class_name = bytes_as_nonempty_str(&data.class_name)?;
         let new_state = data.new_state;
@@ -167,6 +170,9 @@ where
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_BindServiceLocked_output_buf";
     type T = BindServiceLocked;
     fn on_item(&mut self, _task: &ResolvedTask, data: &BindServiceLocked) -> Result<()> {
+        if data.error_code < 0 {
+            bail!("BindServiceLocked BPF error: {}", data.error_code);
+        }
         let calling_package = bytes_as_str(&data.calling_package)?;
         let intent_package = bytes_as_str(&data.intent_package)?;
         let intent_action = bytes_as_str(&data.intent_action)?;
@@ -393,6 +399,7 @@ mod test {
         calling_package_name: &str,
     ) -> ComponentEnabledSetting {
         ComponentEnabledSetting {
+            error_code: 0,
             package_name: c_str_arr(package_name),
             class_name: c_str_arr(class_name),
             new_state,
@@ -571,6 +578,7 @@ mod test {
         intent_component_name_class: Option<&str>,
     ) -> BindServiceLocked {
         BindServiceLocked {
+            error_code: 0,
             intent_package: c_str_arr(intent_package),
             intent_component_name_package: c_str_arr(intent_component_name_package),
             calling_package: c_str_arr(calling_package),
@@ -877,6 +885,39 @@ mod test {
             setup_bind_service_handler(MockIUprobeStatsBridgeService::new(), false);
         let data = create_bind_service_locked("", "", "", 0, None, None);
         assert!(handler.on_item(&task, &data).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn component_enabled_setting_with_error_bails() -> Result<()> {
+        let (mut handler, task) =
+            setup_component_handler(MockIUprobeStatsBridgeService::new(), false);
+        let data = ComponentEnabledSetting {
+            error_code: -1,
+            ..create_component_enabled_setting("pkg", "cls", 2, "caller")
+        };
+        assert!(handler.on_item(&task, &data).is_err());
+        assert!(handler.writer.written.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn bind_service_locked_with_error_bails() -> Result<()> {
+        let (mut handler, task) =
+            setup_bind_service_handler(MockIUprobeStatsBridgeService::new(), false);
+        let data = BindServiceLocked {
+            error_code: -1,
+            ..create_bind_service_locked(
+                "pkg",
+                "comp_pkg",
+                "caller",
+                BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+                None,
+                None,
+            )
+        };
+        assert!(handler.on_item(&task, &data).is_err());
+        assert!(handler.writer.written.is_empty());
         Ok(())
     }
 }

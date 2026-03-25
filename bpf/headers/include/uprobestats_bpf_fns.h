@@ -33,12 +33,19 @@ __BEGIN_DECLS
  * byte offset 12-15: hash_code
  * byte offset 16 and beyond: string content
  */
-void recordString(uint8_t *jstring, unsigned int max_length, char *dest) {
+static __always_inline __attribute__((unused)) int
+recordString(uint8_t *jstring, unsigned int max_length, char *dest) {
+  if (jstring == NULL) {
+    dest[0] = '\0';
+    return 0;
+  }
   __u32 count;
-  bpf_probe_read_user(&count, sizeof(count), jstring + 8);
+  int ret = bpf_probe_read_user(&count, sizeof(count), jstring + 8);
+  if (ret < 0)
+    return ret;
   count /= 2;
-  bpf_probe_read_user_str(dest, max_length < count + 1 ? max_length : count + 1,
-                          jstring + 16);
+  return bpf_probe_read_user_str(
+      dest, max_length < count + 1 ? max_length : count + 1, jstring + 16);
 }
 
 /**
@@ -47,23 +54,29 @@ void recordString(uint8_t *jstring, unsigned int max_length, char *dest) {
  * This only works for the 0th - the 5th arguments. Rest of the arguments need
  * to be accessed via stack pointer using the recordStringArgFromSp() function.
  */
-void recordStringArg(struct pt_regs *ctx, unsigned int max_length, int position,
-                     char *dest) {
-  recordString((void *)ctx->regs[2 + position], max_length, dest);
+static __always_inline __attribute__((unused)) int
+recordStringArg(struct pt_regs *ctx, unsigned int max_length, int position,
+                char *dest) {
+  uint8_t *jstring = (uint8_t *)ctx->regs[2 + position];
+  return recordString(jstring, max_length, dest);
 }
 
 /**
  * Copies the content of a Java String object to <dest>, where the Java String
  * address is located in stack frame.
  */
-void recordStringArgFromSp(struct pt_regs *ctx, unsigned int max_length,
-                           int sp_offset, char *dest) {
+static __always_inline __attribute__((unused)) int
+recordStringArgFromSp(struct pt_regs *ctx, unsigned int max_length,
+                      int sp_offset, char *dest) {
   void *jstring = NULL;
-  bpf_probe_read_user(&jstring, 4, (void *)ctx->sp + sp_offset);
-  recordString(jstring, max_length, dest);
+  int ret = bpf_probe_read_user(&jstring, 4, (void *)ctx->sp + sp_offset);
+  if (ret < 0)
+    return ret;
+  return recordString(jstring, max_length, dest);
 }
 
-uint8_t* getJitMethodStackFrame(struct pt_regs *ctx) {
+static __always_inline __attribute__((unused)) uint8_t *
+getJitMethodStackFrame(struct pt_regs *ctx) {
   // The first argument of a JIT compiled method is the size of the "stub"
   // method in the stack frame. The next frame is the actual method under
   // instrumentation.
@@ -75,7 +88,8 @@ uint8_t* getJitMethodStackFrame(struct pt_regs *ctx) {
  * <user_space_address> to <dest> at offset <offset>.
  * TODO(yutingtseng): double check this description is correct.
  */
-int load(void *dest, int offset, int length, void *user_space_address) {
+static __always_inline __attribute__((unused)) int
+load(void *dest, int offset, int length, void *user_space_address) {
   long canonical_address = (long)user_space_address & 0x00FFFFFFFFFFFFFF;
   return bpf_probe_read_user(dest, length,
                              (void *)(canonical_address + offset));

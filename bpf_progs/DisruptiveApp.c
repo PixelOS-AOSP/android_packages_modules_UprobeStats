@@ -15,6 +15,7 @@
  */
 
 #include <bpf_helpers.h>
+#include <errno.h>
 #include <linux/bpf.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -64,39 +65,76 @@ DEFINE_BPF_PROG("uprobe/bind_service_locked", AID_UPROBESTATS, AID_UPROBESTATS,
   if (output == NULL)
     return 1;
 
+  output->error_code = 0;
   output->bind_flags = bind_flags;
 
+  int ret = 0;
   void *intent_ptr = (void *)ctx->regs[4];
+  if (intent_ptr == NULL) {
+    ret = -EFAULT;
+    goto out;
+  }
 
   void *intent_package_name_ptr = NULL;
-  bpf_probe_read_user(&intent_package_name_ptr, 4,
-                      intent_ptr + kIntentPackageOffset);
-  recordString(intent_package_name_ptr, MAX_STRING_LENGTH,
-               output->intent_package);
+  ret = bpf_probe_read_user(&intent_package_name_ptr, 4,
+                            intent_ptr + kIntentPackageOffset);
+  if (ret < 0)
+    goto out;
+
+  ret = recordString(intent_package_name_ptr, MAX_STRING_LENGTH,
+                     output->intent_package);
+  if (ret < 0)
+    goto out;
 
   void *intent_action_ptr = NULL;
-  bpf_probe_read_user(&intent_action_ptr, 4, intent_ptr + kIntentActionOffset);
-  recordString(intent_action_ptr, MAX_STRING_LENGTH, output->intent_action);
+  ret = bpf_probe_read_user(&intent_action_ptr, 4,
+                            intent_ptr + kIntentActionOffset);
+  if (ret < 0)
+    goto out;
+
+  ret =
+      recordString(intent_action_ptr, MAX_STRING_LENGTH, output->intent_action);
+  if (ret < 0)
+    goto out;
 
   void *component_name_ptr = NULL;
-  bpf_probe_read_user(&component_name_ptr, 4,
-                      intent_ptr + kIntentComponentNameOffset);
+  ret = bpf_probe_read_user(&component_name_ptr, 4,
+                            intent_ptr + kIntentComponentNameOffset);
+  if (ret < 0)
+    goto out;
+  if (component_name_ptr == NULL) {
+    ret = -EFAULT;
+    goto out;
+  }
 
   void *intent_component_name_package_ptr = NULL;
-  bpf_probe_read_user(&intent_component_name_package_ptr, 4,
-                      component_name_ptr + kComponentNamePackageOffset);
-  recordString(intent_component_name_package_ptr, MAX_STRING_LENGTH,
-               output->intent_component_name_package);
+  ret = bpf_probe_read_user(&intent_component_name_package_ptr, 4,
+                            component_name_ptr + kComponentNamePackageOffset);
+  if (ret < 0)
+    goto out;
+
+  ret = recordString(intent_component_name_package_ptr, MAX_STRING_LENGTH,
+                     output->intent_component_name_package);
+  if (ret < 0)
+    goto out;
 
   void *intent_component_name_class_ptr = NULL;
-  bpf_probe_read_user(&intent_component_name_class_ptr, 4,
-                      component_name_ptr + kComponentNameClassOffset);
-  recordString(intent_component_name_class_ptr, MAX_STRING_LENGTH,
-               output->intent_component_name_class);
+  ret = bpf_probe_read_user(&intent_component_name_class_ptr, 4,
+                            component_name_ptr + kComponentNameClassOffset);
+  if (ret < 0)
+    goto out;
 
-  recordStringArgFromSp(ctx, MAX_STRING_LENGTH, kCallingPackageStackFrameOffset,
-                        output->calling_package);
+  ret = recordString(intent_component_name_class_ptr, MAX_STRING_LENGTH,
+                     output->intent_component_name_class);
+  if (ret < 0)
+    goto out;
 
+  ret = recordStringArgFromSp(ctx, MAX_STRING_LENGTH,
+                              kCallingPackageStackFrameOffset,
+                              output->calling_package);
+
+out:
+  output->error_code = ret;
   bpf_BindServiceLocked_output_buf_submit(output);
   return 0;
 }
@@ -109,23 +147,44 @@ DEFINE_BPF_PROG("uprobe/set_component_enabled_setting", AID_UPROBESTATS,
   if (output == NULL)
     return 1;
 
+  output->error_code = 0;
+  int ret = 0;
   void *component_name_ptr = (void *)ctx->regs[2];
+  if (component_name_ptr == NULL) {
+    ret = -EFAULT;
+    goto out;
+  }
+
   void *class_name = NULL;
   void *package_name = NULL;
 
-  bpf_probe_read_user(&class_name, 4,
-                      component_name_ptr + kComponentNameClassOffset);
-  recordString(class_name, 64, output->class_name);
+  ret = bpf_probe_read_user(&class_name, 4,
+                            component_name_ptr + kComponentNameClassOffset);
+  if (ret < 0)
+    goto out;
 
-  bpf_probe_read_user(&package_name, 4,
-                      component_name_ptr + kComponentNamePackageOffset);
-  recordString(package_name, 64, output->package_name);
+  ret = recordString(class_name, 64, output->class_name);
+  if (ret < 0)
+    goto out;
+
+  ret = bpf_probe_read_user(&package_name, 4,
+                            component_name_ptr + kComponentNamePackageOffset);
+  if (ret < 0)
+    goto out;
+
+  ret = recordString(package_name, 64, output->package_name);
+  if (ret < 0)
+    goto out;
 
   void *calling_package_name = (void *)ctx->regs[6];
-  recordString(calling_package_name, 64, output->calling_package_name);
+  ret = recordString(calling_package_name, 64, output->calling_package_name);
+  if (ret < 0)
+    goto out;
 
   output->new_state = ctx->regs[3];
 
+out:
+  output->error_code = ret;
   bpf_ComponentEnabledSetting_output_buf_submit(output);
   return 0;
 }
