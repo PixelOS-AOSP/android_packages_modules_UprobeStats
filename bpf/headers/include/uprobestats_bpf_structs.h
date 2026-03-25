@@ -148,6 +148,7 @@ struct StartActivityAsUser {
 };
 
 struct AccessibilityEvent {
+  int error_code;
   unsigned long timestamp_ns;
   int variant; // 1 == runtime permission grant, 2 == a11y service connection
   char package_name[MAX_STRING_LENGTH]; // runtime permission grant
