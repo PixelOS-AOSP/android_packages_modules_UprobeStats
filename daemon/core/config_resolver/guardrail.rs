@@ -2,14 +2,17 @@
 use anyhow::{anyhow, bail, Result};
 use uprobestats_proto::config::{uprobestats_config::task::ProbeConfig, UprobestatsConfig};
 
-const ALLOWED_METHOD_PREFIXES: [&str; 6] = [
+const ALLOWED_METHOD_PREFIXES: [&str; 7] = [
     "com.android.server.am.ActivityManagerService$LocalService.updateDeviceIdleTempAllowlist",
     "com.android.server.am.CachedAppOptimizer",
     "com.android.server.am.OomAdjuster",
     "com.android.server.am.OomAdjusterModernImpl",
     "com.android.server.pm.PackageManagerService$IPackageManagerImpl.setComponentEnabledSetting",
     "com.android.server.am.ActiveServices.bindServiceLocked",
+    "com.android.server.pm.permission.PermissionManagerService.grantRuntimePermission",
 ];
+
+const PROG_BINDER_A11Y_SERVICE_CONNECTION: &str = "prog_Accessibility_uprobe_dispatch_gesture";
 
 /// Checks if the given config is allowed to be instrumented on user devices.
 ///
@@ -25,6 +28,13 @@ pub fn is_allowed(
     }
     for task in &config.tasks {
         for probe in &task.probe_configs {
+            let Some(ref bpf_program_name) = probe.bpf_name else {
+                bail!("BPF program name is empty")
+            };
+            if bpf_program_name == PROG_BINDER_A11Y_SERVICE_CONNECTION {
+                return Ok(true);
+            }
+
             let full_method_name = get_full_method_name(probe, offsets_api_enabled)?;
             let mut allowed = false;
             for prefix in ALLOWED_METHOD_PREFIXES {
@@ -101,6 +111,33 @@ mod tests {
     }
 
     #[test]
+    fn permission_manager_allowed() {
+        let config = setup_config(vec![setup_probe_config(
+            "com.android.server.pm.permission.PermissionManagerService",
+            "grantRuntimePermission",
+            vec![],
+        )]);
+
+        assert!(is_allowed(&config, true, false).unwrap());
+        assert!(is_allowed(&config, true, true).unwrap());
+    }
+
+    #[test]
+    fn a11y_service_connection_bpf_program_allowed() {
+        // This class is not in the allowlist, but the BPF program is.
+        let mut config = setup_config(vec![setup_probe_config(
+            "com.android.server.am.DisallowedClass",
+            "doWork",
+            vec![],
+        )]);
+        config.tasks[0].probe_configs[0].bpf_name =
+            Some(PROG_BINDER_A11Y_SERVICE_CONNECTION.to_string());
+
+        assert!(is_allowed(&config, true, false).unwrap());
+        assert!(is_allowed(&config, true, true).unwrap());
+    }
+
+    #[test]
     fn update_device_idle_temp_allowlist_allowed() {
         let config = setup_config(vec![setup_probe_config(
             "com.android.server.am.ActivityManagerService$LocalService",
@@ -156,6 +193,7 @@ mod tests {
         fully_qualified_parameters: impl IntoIterator<Item = String> + Clone,
     ) -> ProbeConfig {
         ProbeConfig {
+            bpf_name: Some("prog_some_bpf".to_string()),
             fully_qualified_class_name: Some(class_name.to_string()),
             method_name: Some(method_name.to_string()),
             fully_qualified_parameters: fully_qualified_parameters.clone().into_iter().collect(),
