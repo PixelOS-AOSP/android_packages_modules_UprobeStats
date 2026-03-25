@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Result};
 use binder::LazyServiceGuard;
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
 use std::{
     collections::{HashMap, HashSet},
@@ -14,7 +14,7 @@ use std::{
     sync::MutexGuard,
     thread,
 };
-use uprobestats_bpf::{bpf_perf_event_open, UpdateMapElemFlags};
+use uprobestats_bpf::{bpf_perf_event_open, bpf_ring_buffer_discard, UpdateMapElemFlags};
 use uprobestats_core::config_resolver::{
     self, ConfigError, InterfaceConfig, ResolvedProbe, ResolvedTask,
 };
@@ -204,6 +204,13 @@ fn bpf_program_path_to_enum(path: &str) -> uprobe_stats_bpf_attached::BpfProgram
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
 fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
+    // Discard maps before attaching probes to ensure a clean slate.
+    for map_path in &task.bpf_map_paths {
+        if bpf_ring_buffer_discard(map_path)? {
+            info!("discarded stale values from map path {map_path}");
+        }
+    }
+
     // keep the fds in scope so they don't get closed immediately. They will be closed when they
     // go out of scope at the end of this function.
     let _perf_event_fds: Vec<OwnedFd> = task

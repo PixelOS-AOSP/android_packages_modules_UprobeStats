@@ -27,6 +27,7 @@ BpfRingBufHandle *bpfRingBufCreate(const char *mapPath, size_t valueSize);
 void bpfRingBufDestroy(BpfRingBufHandle *handle);
 int bpfRingBufPoll(BpfRingBufHandle *handle, int timeoutMs,
                    void (*callback)(const void *, void *), void *cookie);
+int bpfRingBufDiscard(const char *mapPath);
 
 int bpfPerfEventOpen(const char *filename, int offset, int pid,
                      const char *bpfProgramPath);

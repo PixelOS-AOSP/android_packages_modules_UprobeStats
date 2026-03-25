@@ -26,8 +26,8 @@ use std::{
 };
 use uprobestats_bpf_bindgen::{
     bpfMapClose, bpfMapDeleteElem, bpfMapGetFirstKey, bpfMapLookupElem, bpfMapOpenExclusiveRW,
-    bpfMapUpdateElem, bpfPerfEventOpen, bpfRingBufCreate, bpfRingBufDestroy, bpfRingBufPoll,
-    BpfMapHandle, BpfRingBufHandle,
+    bpfMapUpdateElem, bpfPerfEventOpen, bpfRingBufCreate, bpfRingBufDestroy, bpfRingBufDiscard,
+    bpfRingBufPoll, BpfMapHandle, BpfRingBufHandle,
 };
 use uprobestats_c_string::c_string;
 
@@ -67,6 +67,21 @@ impl<T: Copy + Debug> BpfRingBuffer<T> {
         ensure!(result >= 0, "Failed to poll ring buffer. Error code: {}", result);
         Ok(data)
     }
+}
+
+/// Discards all pending events in the ring buffer at the given path.
+/// Returns `Ok(true)` if items were discarded, `Ok(false)` otherwise.
+pub fn bpf_ring_buffer_discard(path: &str) -> Result<bool> {
+    let path = c_string(path)?;
+    // SAFETY: path is a valid C string.
+    let result = unsafe { bpfRingBufDiscard(path.as_ptr()) };
+    ensure!(
+        result >= 0,
+        "Failed to discard ring buffer at {}. Error code: {}",
+        path.to_str()?,
+        result
+    );
+    Ok(result == 1)
 }
 
 impl<T> Drop for BpfRingBuffer<T> {
