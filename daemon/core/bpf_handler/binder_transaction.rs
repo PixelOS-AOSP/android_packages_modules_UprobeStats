@@ -3,7 +3,7 @@ use crate::{
     bpf_handler::{get_current_timestamp_millis, DynamicInstrumentationPayloadIds, Handler},
     bridge_service::UprobeStatsBridgeService,
     config_resolver::{AtomConfig, EventMode, ResolvedTask},
-    string::bytes_as_str,
+    string::bytes_as_nonempty_str,
 };
 use anyhow::{bail, Result};
 use log::debug;
@@ -30,7 +30,7 @@ where
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Binder_output_buf";
     type T = BinderTransaction;
     fn on_item(&mut self, task: &ResolvedTask, item: &BinderTransaction) -> Result<()> {
-        let name = bytes_as_str(&item.interface_descriptor)?;
+        let name = bytes_as_nonempty_str(&item.interface_descriptor)?;
         debug!(
             "BinderTransaction: interface_descriptor={}, code={}, calling_uid={}, timestamp_ns={}",
             name, item.code, item.calling_uid, item.timestamp_ns
@@ -463,6 +463,21 @@ mod test {
             create_binder_transaction(TEST_INTERFACE_NAME, 2, TEST_CALLING_UID, TEST_TIMESTAMP_NS);
         handler.on_item(&task, &t2)?;
 
+        Ok(())
+    }
+
+    #[test]
+    fn binder_transaction_empty_interface_fails() -> Result<()> {
+        let (mut handler, task) = setup_handler_and_task(
+            MockIUprobeStatsBridgeService::new(),
+            vec![(TEST_CODE.into(), Some(EventServiceConfig { mode: EventMode::Buffer }), None)],
+        );
+
+        let transaction =
+            create_binder_transaction("", TEST_CODE, TEST_CALLING_UID, TEST_TIMESTAMP_NS);
+
+        let result = handler.on_item(&task, &transaction);
+        assert!(result.is_err());
         Ok(())
     }
 }
