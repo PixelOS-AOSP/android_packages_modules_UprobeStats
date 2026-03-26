@@ -37,8 +37,8 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallTimestampHandler<A>
         let atom = UnstructuredAtom {
             atom_id: atom_id.try_into()?,
             fields: vec![
-                Field::new(Value::Int32(data.event.try_into()?)),
-                Field::new(Value::Int64(data.timestampNs.try_into()?)),
+                Field::new(Value::Int32(data.event as i32)),
+                Field::new(Value::Int64(data.timestampNs as i64)),
             ],
         };
         self.writer.write(atom)?;
@@ -80,11 +80,13 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallResultHandler<A> {
         for primitive_argument_position in &statsd_logging_config.primitive_argument_positions {
             let register_index: usize =
                 (JAVA_ARGUMENT_REGISTER_OFFSET + primitive_argument_position).try_into()?;
-            let primitive_argument: i32 = data.regs[register_index].try_into()?;
+            let raw_value = data.regs[register_index] as i64;
+
             debug!(
-                "writing primitive_argument: {primitive_argument} from position: {primitive_argument_position}"
+                "writing register value: {:?} from position: {primitive_argument_position}",
+                raw_value
             );
-            fields.push(Field::new(Value::Int32(primitive_argument)));
+            fields.push(Field::new(Value::Int64(raw_value)));
         }
 
         let atom = UnstructuredAtom { atom_id: atom_id.try_into()?, fields };
@@ -170,7 +172,7 @@ mod test {
         assert_eq!(atom.atom_id, 123);
         assert_eq!(
             atom.fields,
-            vec![Field::new(Value::Int32(101)), Field::new(Value::Int32(103)),]
+            vec![Field::new(Value::Int64(101)), Field::new(Value::Int64(103)),]
         );
         Ok(())
     }
