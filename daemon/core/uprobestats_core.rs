@@ -5,5 +5,6 @@ pub mod bpf_map;
 pub mod bridge_service;
 pub mod config_resolver;
 pub mod device_properties;
+pub mod error;
 pub mod string;
 pub mod timer;
