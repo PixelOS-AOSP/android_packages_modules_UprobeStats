@@ -25,6 +25,8 @@ pub mod process_management;
 pub unsafe trait Handler {
     /// The path to the BPF map backing this handler.
     const MAP_PATH: &'static str;
+    /// The path of the BPF program associated with this handler, IIF it's  a 1:1 relationship.
+    const PROG_PATH: Option<&'static str> = None;
     /// The type of value emitted by the map at `MAP_PATH`.
     type T: Debug + Copy;
     /// Handle an individual item emitted from the map.

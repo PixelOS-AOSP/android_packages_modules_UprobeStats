@@ -34,6 +34,8 @@ where
 {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_ComponentEnabledSetting_output_buf";
+    const PROG_PATH: Option<&'static str> =
+        Some("/sys/fs/bpf/uprobestats/prog_DisruptiveApp_uprobe_set_component_enabled_setting");
     type T = ComponentEnabledSetting;
     fn on_item(&mut self, _task: &ResolvedTask, data: &ComponentEnabledSetting) -> Result<()> {
         if data.error_code < 0 {
@@ -168,6 +170,8 @@ where
 {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_DisruptiveApp_BindServiceLocked_output_buf";
+    const PROG_PATH: Option<&'static str> =
+        Some("/sys/fs/bpf/uprobestats/prog_DisruptiveApp_uprobe_bind_service_locked");
     type T = BindServiceLocked;
     fn on_item(&mut self, _task: &ResolvedTask, data: &BindServiceLocked) -> Result<()> {
         if data.error_code < 0 {

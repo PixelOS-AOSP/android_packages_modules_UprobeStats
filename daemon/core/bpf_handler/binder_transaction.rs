@@ -28,6 +28,8 @@ where
     B: UprobeStatsBridgeService,
 {
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Binder_output_buf";
+    const PROG_PATH: Option<&'static str> =
+        Some("/sys/fs/bpf/uprobestats/prog_Binder_uprobe_exec_transact_internal");
     type T = BinderTransaction;
     fn on_item(&mut self, task: &ResolvedTask, item: &BinderTransaction) -> Result<()> {
         let name = bytes_as_nonempty_str(&item.interface_descriptor)?;
