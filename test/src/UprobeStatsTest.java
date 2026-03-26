@@ -18,9 +18,9 @@ package com.android.uprobestats;
 
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BINDER_TRANSACTION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRUMENTATION;
-import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
+import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
 import static com.android.uprobestats.UprobeStatsBpfAttached.BpfProgram;
 import static com.android.uprobestats.UprobeStatsBpfMapPolled.BpfMapPath;
 import static com.google.common.truth.Truth.assertThat;
@@ -334,6 +334,10 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     private static final String RESOLVE_PROCESS_FRAMEWORK_CONFIG =
             "resolve_process_framework.textproto";
     private static final String RESOLVE_PROCESS_CUSTOM_CONFIG = "resolve_process_custom.textproto";
+    private static final String GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG =
+            "generic_instrumentation_primitive_args.textproto";
+    private static final String GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG =
+            "generic_instrumentation_primitive_args_aot.textproto";
     private static final String TEST_APK_PACKAGE_NAME = "com.android.uprobestats.testapk";
     private static final String TEST_APK_ACTIVITY_NAME = "InstrumentationTestActivity";
     private static final String TEST_APK_COMPONENT_NAME =
@@ -341,6 +345,13 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
     private static final String ACTION_TRIGGER_FRAMEWORK =
             TEST_APK_PACKAGE_NAME + ".TRIGGER_FRAMEWORK";
     private static final String ACTION_TRIGGER_CUSTOM = TEST_APK_PACKAGE_NAME + ".TRIGGER_CUSTOM";
+    private static final String ACTION_TRIGGER_PRIMITIVES =
+            TEST_APK_PACKAGE_NAME + ".TRIGGER_PRIMITIVES";
+    private static final String ACTION_TRIGGER_PRIMITIVES_AOT =
+            TEST_APK_PACKAGE_NAME + ".TRIGGER_PRIMITIVES_AOT";
+    private static final String EXTRA_INT_VAL = "intVal";
+    private static final String EXTRA_BOOL_VAL = "boolVal";
+    private static final String EXTRA_LONG_VAL = "longVal";
 
     @Test
     @RequiresFlagsEnabled(FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES)
@@ -454,38 +465,73 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_frameworkMethod() throws Exception {
-        assumeTrue(CpuFeatures.isArm64(getDevice()));
-
-        try (AutoCloseable a =
-                DeviceUtils.withActivity(
-                        getDevice(), TEST_APK_PACKAGE_NAME, TEST_APK_ACTIVITY_NAME, null, null)) {
-
-            mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
-                    getClass(),
-                    RESOLVE_PROCESS_FRAMEWORK_CONFIG,
-                    UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
-
-            // Allow UprobeStats/StatsD time to get set up and listening
-            RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
-
-            // Send intent to trigger the framework method
-            getDevice()
-                    .executeShellCommand(
-                            "am start -n "
-                                    + TEST_APK_COMPONENT_NAME
-                                    + " -e action "
-                                    + ACTION_TRIGGER_FRAMEWORK);
-
-            mUprobeStatsTestRule.assertSelfMetricsReported(
-                    BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
-                    BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
-                    atom -> assertThat(atom.getEventsCount()).isEqualTo(1));
-        }
+        genericInstrumentationTest(
+                RESOLVE_PROCESS_FRAMEWORK_CONFIG,
+                ACTION_TRIGGER_FRAMEWORK,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                null);
     }
 
     @Test
     public void apkProcess_apkMethod() throws Exception {
+        genericInstrumentationTest(
+                RESOLVE_PROCESS_CUSTOM_CONFIG,
+                ACTION_TRIGGER_CUSTOM,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                null);
+    }
+
+    @Test
+    public void apkProcess_genericInstrumentation_primitiveArgs() throws Exception {
+        genericInstrumentationTest(
+                GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
+                ACTION_TRIGGER_PRIMITIVES,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                new ExpectedValues(123, true, 456L));
+    }
+
+    @Test
+    public void apkProcess_genericInstrumentation_primitiveArgsAot() throws Exception {
+        genericInstrumentationTest(
+                GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
+                ACTION_TRIGGER_PRIMITIVES_AOT,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                new ExpectedValues(123, true, 456L));
+    }
+
+    @Test
+    public void apkProcess_genericInstrumentation_primitiveArgs_negative() throws Exception {
+        genericInstrumentationTest(
+                GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
+                ACTION_TRIGGER_PRIMITIVES,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                new ExpectedValues(-123, false, -456L));
+    }
+
+    @Test
+    public void apkProcess_genericInstrumentation_primitiveArgsAot_negative() throws Exception {
+        genericInstrumentationTest(
+                GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
+                ACTION_TRIGGER_PRIMITIVES_AOT,
+                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                new ExpectedValues(-123, false, -456L));
+    }
+
+    private void genericInstrumentationTest(
+            String config,
+            String action,
+            BpfProgram bpfProgram,
+            BpfMapPath bpfMapPath,
+            ExpectedValues expectedValues)
+            throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
+        getDevice().executeShellCommand("pm compile -m speed-profile -f " + TEST_APK_PACKAGE_NAME);
 
         try (AutoCloseable a =
                 DeviceUtils.withActivity(
@@ -493,23 +539,62 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
             mUprobeStatsTestRule.configureStatsDAndStartUprobeStats(
                     getClass(),
-                    RESOLVE_PROCESS_CUSTOM_CONFIG,
+                    config,
                     UprobestatsExtensionAtoms.TEST_UPROBESTATS_ATOM_REPORTED_FIELD_NUMBER);
 
             // Allow UprobeStats/StatsD time to get set up and listening
             RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
-            getDevice()
-                    .executeShellCommand(
-                            "am start -n "
-                                    + TEST_APK_COMPONENT_NAME
-                                    + " -e action "
-                                    + ACTION_TRIGGER_CUSTOM);
+            StringBuilder command =
+                    new StringBuilder("am start -n ")
+                            .append(TEST_APK_COMPONENT_NAME)
+                            .append(" -e action ")
+                            .append(action);
+            if (expectedValues != null) {
+                command.append(" --ei ")
+                        .append(EXTRA_INT_VAL)
+                        .append(" ")
+                        .append(expectedValues.intVal)
+                        .append(" --ez ")
+                        .append(EXTRA_BOOL_VAL)
+                        .append(" ")
+                        .append(expectedValues.boolVal)
+                        .append(" --el ")
+                        .append(EXTRA_LONG_VAL)
+                        .append(" ")
+                        .append(expectedValues.longVal);
+            }
+
+            getDevice().executeShellCommand(command.toString());
+
+            if (expectedValues != null) {
+                // See if the atom made it
+                TestUprobeStatsAtomReported reported =
+                        mUprobeStatsTestRule
+                                .getExtensionAtoms(
+                                        UprobestatsExtensionAtoms.testUprobestatsAtomReported)
+                                .findFirst()
+                                .get();
+                assertThat(reported.getFirstField())
+                        .isEqualTo(Integer.toUnsignedLong(expectedValues.intVal));
+                assertThat(reported.getSecondField()).isEqualTo(expectedValues.boolVal ? 1 : 0);
+                assertThat(reported.getThirdField()).isEqualTo(expectedValues.longVal);
+            }
 
             mUprobeStatsTestRule.assertSelfMetricsReported(
-                    BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
-                    BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
-                    atom -> assertThat(atom.getEventsCount()).isEqualTo(1));
+                    bpfProgram, bpfMapPath, atom -> assertThat(atom.getEventsCount()).isEqualTo(1));
+        }
+    }
+
+    private static final class ExpectedValues {
+        final int intVal;
+        final boolean boolVal;
+        final long longVal;
+
+        ExpectedValues(int intVal, boolean boolVal, long longVal) {
+            this.intVal = intVal;
+            this.boolVal = boolVal;
+            this.longVal = longVal;
         }
     }
 }

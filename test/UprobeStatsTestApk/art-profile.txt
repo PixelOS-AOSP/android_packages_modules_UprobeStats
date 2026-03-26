@@ -1,0 +1,2 @@
+Lcom/android/uprobestats/testapk/InstrumentationTestActivity;
+HSPLcom/android/uprobestats/testapk/InstrumentationTestActivity;->testPrimitiveArgsAot(IZJ)V
