@@ -4,9 +4,10 @@ use crate::{
     bridge_service::UprobeStatsBridgeService,
     config_resolver::ResolvedTask,
     device_properties::DeviceProperties,
+    error::UprobeStatsError,
     string::{bytes_as_nonempty_str, bytes_as_str},
 };
-use anyhow::{bail, Result};
+use anyhow::Result;
 use log::{debug, trace};
 use std::ffi::c_long;
 use uprobestats_bpf_structs::{BindServiceLocked, ComponentEnabledSetting};
@@ -39,10 +40,12 @@ where
     type T = ComponentEnabledSetting;
     fn on_item(&mut self, _task: &ResolvedTask, data: &ComponentEnabledSetting) -> Result<()> {
         if data.error_code < 0 {
-            bail!("ComponentEnabledSetting BPF error: {}", data.error_code);
+            return Err(UprobeStatsError::BpfProgramError(data.error_code).into());
         }
-        let package_name = bytes_as_nonempty_str(&data.package_name)?;
-        let class_name = bytes_as_nonempty_str(&data.class_name)?;
+        let package_name = bytes_as_nonempty_str(&data.package_name)
+            .map_err(|_| UprobeStatsError::BpfDataInvalid(1))?;
+        let class_name = bytes_as_nonempty_str(&data.class_name)
+            .map_err(|_| UprobeStatsError::BpfDataInvalid(2))?;
         let new_state = data.new_state;
         let calling_package_name = bytes_as_str(&data.calling_package_name)?;
 
@@ -175,7 +178,7 @@ where
     type T = BindServiceLocked;
     fn on_item(&mut self, _task: &ResolvedTask, data: &BindServiceLocked) -> Result<()> {
         if data.error_code < 0 {
-            bail!("BindServiceLocked BPF error: {}", data.error_code);
+            return Err(UprobeStatsError::BpfProgramError(data.error_code).into());
         }
         let calling_package = bytes_as_str(&data.calling_package)?;
         let intent_package = bytes_as_str(&data.intent_package)?;
@@ -194,7 +197,7 @@ where
             && intent_component_name_package.is_empty()
             && intent_component_name_class.is_empty()
         {
-            bail!("BindServiceLocked: all strings are empty");
+            return Err(UprobeStatsError::BpfDataInvalid(1).into());
         }
 
         if !has_bal_flag {
@@ -808,12 +811,20 @@ mod test {
         // empty package_name
         let data =
             create_component_enabled_setting("", "cls", COMPONENT_ENABLED_STATE_DISABLED, "caller");
-        assert!(handler.on_item(&task, &data).is_err());
+        let result = handler.on_item(&task, &data);
+        assert!(matches!(
+            result.as_ref().err().and_then(|e| e.downcast_ref::<UprobeStatsError>()),
+            Some(UprobeStatsError::BpfDataInvalid(_))
+        ));
 
         // empty class_name
         let data =
             create_component_enabled_setting("pkg", "", COMPONENT_ENABLED_STATE_DISABLED, "caller");
-        assert!(handler.on_item(&task, &data).is_err());
+        let result = handler.on_item(&task, &data);
+        assert!(matches!(
+            result.as_ref().err().and_then(|e| e.downcast_ref::<UprobeStatsError>()),
+            Some(UprobeStatsError::BpfDataInvalid(_))
+        ));
 
         // empty calling_package_name is allowed
         let data =
@@ -900,7 +911,11 @@ mod test {
             error_code: -1,
             ..create_component_enabled_setting("pkg", "cls", 2, "caller")
         };
-        assert!(handler.on_item(&task, &data).is_err());
+        let result = handler.on_item(&task, &data);
+        assert!(matches!(
+            result.as_ref().err().and_then(|e| e.downcast_ref::<UprobeStatsError>()),
+            Some(UprobeStatsError::BpfProgramError(-1))
+        ));
         assert!(handler.writer.written.is_empty());
         Ok(())
     }
@@ -920,7 +935,11 @@ mod test {
                 None,
             )
         };
-        assert!(handler.on_item(&task, &data).is_err());
+        let result = handler.on_item(&task, &data);
+        assert!(matches!(
+            result.as_ref().err().and_then(|e| e.downcast_ref::<UprobeStatsError>()),
+            Some(UprobeStatsError::BpfProgramError(-1))
+        ));
         assert!(handler.writer.written.is_empty());
         Ok(())
     }
