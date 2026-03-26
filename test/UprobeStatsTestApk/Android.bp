@@ -12,14 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-android_test_helper_app {
-    name: "UprobeStatsTestApk",
-
+java_defaults {
+    name: "UprobeStatsTestApk_defaults",
     srcs: ["**/*.java"],
-
     manifest: "AndroidManifest.xml",
     min_sdk_version: "36",
     sdk_version: "test_current",
     certificate: "platform",
+}
+
+android_test_helper_app {
+    name: "UprobeStatsTestApkBase",
+    defaults: ["UprobeStatsTestApk_defaults"],
+}
+
+android_test_helper_app {
+    name: "UprobeStatsTestApk",
+    defaults: ["UprobeStatsTestApk_defaults"],
     test_suites: ["mts-uprobestats"],
+    assets: [":UprobeStatsTestApk_assets_profile"],
+}
+
+java_genrule {
+    name: "UprobeStatsTestApk_profile",
+    tools: ["profman"],
+    srcs: [
+        "art-profile.txt",
+        ":UprobeStatsTestApkBase",
+    ],
+    out: ["UprobeStatsTestApk.prof"],
+    cmd: "inputs=($(in)) && " +
+        "$(location profman) " +
+        "--create-profile-from=$${inputs[0]} " +
+        "--apk=$${inputs[1]} " +
+        "--dex-location=base.apk " +
+        "--reference-profile-file=$(out)",
+}
+
+java_genrule {
+    name: "UprobeStatsTestApk_assets_profile",
+    srcs: [":UprobeStatsTestApk_profile"],
+    out: ["art-profile/baseline.prof"],
+    cmd: "cp $(in) $(out)",
 }

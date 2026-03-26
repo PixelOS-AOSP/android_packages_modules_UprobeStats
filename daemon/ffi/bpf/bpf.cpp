@@ -43,6 +43,19 @@ BpfRingBufHandle* bpfRingBufCreate(const char* mapPath, size_t valueSize) {
 
 void bpfRingBufDestroy(BpfRingBufHandle* handle) { delete handle; }
 
+int bpfRingBufDiscard(const char *mapPath) {
+  auto result = android::bpf::BpfRingbufSized::Create(mapPath, 1);
+  if (!result.ok()) {
+    if (result.error().code() == ENOENT) {
+      return 0;
+    }
+    LOG(ERROR) << "Failed to open ring buffer " << mapPath << " for discard"
+               << ". Error: " << result.error().message();
+    return -1;
+  }
+  return result.value()->discard();
+}
+
 int bpfRingBufPoll(BpfRingBufHandle* handle, int timeoutMs,
                    void (*callback)(const void*, void*), void* cookie) {
   if (!handle) {

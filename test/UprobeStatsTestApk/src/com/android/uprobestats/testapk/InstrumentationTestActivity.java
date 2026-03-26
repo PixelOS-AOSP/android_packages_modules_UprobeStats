@@ -20,7 +20,6 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.util.Log;
 
 public class InstrumentationTestActivity extends Activity {
@@ -29,6 +28,13 @@ public class InstrumentationTestActivity extends Activity {
             "com.android.uprobestats.testapk.TRIGGER_FRAMEWORK";
     public static final String ACTION_TRIGGER_CUSTOM =
             "com.android.uprobestats.testapk.TRIGGER_CUSTOM";
+    public static final String ACTION_TRIGGER_PRIMITIVES =
+            "com.android.uprobestats.testapk.TRIGGER_PRIMITIVES";
+    public static final String ACTION_TRIGGER_PRIMITIVES_AOT =
+            "com.android.uprobestats.testapk.TRIGGER_PRIMITIVES_AOT";
+    public static final String EXTRA_INT_VAL = "intVal";
+    public static final String EXTRA_BOOL_VAL = "boolVal";
+    public static final String EXTRA_LONG_VAL = "longVal";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,10 +77,42 @@ public class InstrumentationTestActivity extends Activity {
                 Log.i(TAG, "Triggering custom method");
                 customMethodToTrace();
                 break;
+            case ACTION_TRIGGER_PRIMITIVES:
+            case ACTION_TRIGGER_PRIMITIVES_AOT:
+                int intVal = intent.getIntExtra(EXTRA_INT_VAL, 0);
+                boolean boolVal = intent.getBooleanExtra(EXTRA_BOOL_VAL, false);
+                long longVal = intent.getLongExtra(EXTRA_LONG_VAL, 0);
+                Log.i(
+                        TAG,
+                        "Triggering primitives method with intVal: "
+                                + intVal
+                                + " boolVal: "
+                                + boolVal
+                                + " longVal: "
+                                + longVal);
+
+                if (actionToTake.equals(ACTION_TRIGGER_PRIMITIVES)) {
+                    testPrimitiveArgs(intVal, boolVal, longVal);
+                } else if (actionToTake.equals(ACTION_TRIGGER_PRIMITIVES_AOT)) {
+                    testPrimitiveArgsAot(intVal, boolVal, longVal);
+                } else {
+                    throw new IllegalArgumentException("Unknown action: " + actionToTake);
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown action: " + actionToTake);
         }
     }
 
     public void customMethodToTrace() {
         Log.i(TAG, "customMethodToTrace called");
+    }
+
+    public void testPrimitiveArgs(int i, boolean b, long l) {
+        Log.i(TAG, "testPrimitiveArgs called with " + i + ", " + b + ", " + l);
+    }
+
+    public void testPrimitiveArgsAot(int i, boolean b, long l) {
+        Log.i(TAG, "testPrimitiveArgsAot called with " + i + ", " + b + ", " + l);
     }
 }

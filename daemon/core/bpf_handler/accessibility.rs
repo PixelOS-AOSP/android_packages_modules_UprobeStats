@@ -31,6 +31,9 @@ unsafe impl<A: AtomWriter<UnstructuredAtom>, B: UprobeStatsBridgeService> Handle
     const MAP_PATH: &'static str = "/sys/fs/bpf/uprobestats/map_Accessibility_output_buf";
     type T = AccessibilityEvent;
     fn on_item(&mut self, _task: &ResolvedTask, data: &AccessibilityEvent) -> Result<()> {
+        if data.error_code < 0 {
+            bail!("Accessibility BPF error: {}", data.error_code);
+        }
         let timestamp_ns = data.timestamp_ns;
         #[cfg(target_pointer_width = "32")]
         let timestamp_ns = timestamp_ns.into();
@@ -336,6 +339,7 @@ mod test {
         timestamp: Duration,
     ) -> AccessibilityEvent {
         let mut permission_event = AccessibilityEvent {
+            error_code: 0,
             variant: 1,
             timestamp_ns: timestamp.as_nanos().try_into().unwrap(),
             uid: 0,
@@ -357,6 +361,7 @@ mod test {
 
     fn create_a11y_event(uid: i32, code: i32, timestamp: Duration) -> AccessibilityEvent {
         AccessibilityEvent {
+            error_code: 0,
             variant: 2,
             uid,
             code,
@@ -882,6 +887,7 @@ mod test {
         let result = handler.on_item(
             &task,
             &AccessibilityEvent {
+                error_code: 0,
                 variant: 99,
                 uid: 0,
                 code: 0,
@@ -997,6 +1003,17 @@ mod test {
         };
         assert_eq!(atom_b, expected_b);
 
+        Ok(())
+    }
+
+    #[test]
+    fn accessibility_event_with_error_bails() -> Result<()> {
+        let (mut handler, task) = setup_handler_and_task(MockIUprobeStatsBridgeService::new());
+        let data = AccessibilityEvent {
+            error_code: -1,
+            ..create_a11y_event(TEST_UID, TEST_A11Y_CODE, Duration::from_secs(1))
+        };
+        assert!(handler.on_item(&task, &data).is_err());
         Ok(())
     }
 
