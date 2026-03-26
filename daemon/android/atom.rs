@@ -1,11 +1,84 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
+use log::error;
 use statslog_uprobestats::{
     android_graphics_bitmap_allocated, android_graphics_bitmap_allocation_snapshot,
     android_graphics_bitmap_scaled, bind_service_locked_with_bal_flags_reported,
     bind_service_locked_with_bal_flags_uids_reported, disabled_launcher_activity_uids_reported,
-    set_component_enabled_setting_reported,
+    set_component_enabled_setting_reported, uprobe_stats_bpf_attached, uprobe_stats_bpf_map_polled,
 };
 use uprobestats_core::atom::{AtomWriter, CodegenAtom};
+
+pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached::BpfProgram> {
+    use uprobe_stats_bpf_attached::BpfProgram::*;
+    let Some(filename) = path.rsplit('/').next() else {
+        bail!("Failed to extract filename from path: {path}")
+    };
+    Ok(match filename {
+        "prog_Accessibility_uprobe_accessibility_service_connection" => {
+            ProgAccessibilityUprobeAccessibilityServiceConnection
+        }
+        "prog_Accessibility_uprobe_grant_runtime_permission" => {
+            ProgAccessibilityUprobeGrantRuntimePermission
+        }
+        "prog_Binder_uprobe_exec_transact_internal" => ProgBinderUprobeExecTransactInternal,
+        "prog_BitmapAllocation_uprobe_activity_perform_start" => {
+            ProgBitmapAllocationUprobeActivityPerformStart
+        }
+        "prog_BitmapAllocation_uprobe_apply_free_function" => {
+            ProgBitmapAllocationUprobeApplyFreeFunction
+        }
+        "prog_BitmapAllocation_uprobe_bitmap_creation_for_snapshot" => {
+            ProgBitmapAllocationUprobeBitmapCreationForSnapshot
+        }
+        "prog_BitmapAllocation_uprobe_create_scaled_bitmap" => {
+            ProgBitmapAllocationUprobeCreateScaledBitmap
+        }
+        "prog_DisruptiveApp_uprobe_bind_service_locked" => ProgDisruptiveAppUprobeBindServiceLocked,
+        "prog_DisruptiveApp_uprobe_set_component_enabled_setting" => {
+            ProgDisruptiveAppUprobeSetComponentEnabledSetting
+        }
+        "prog_GenericInstrumentation_uprobe_call_detail" => {
+            ProgGenericInstrumentationUprobeCallDetail
+        }
+        "prog_GenericInstrumentation_uprobe_call_timestamp" => {
+            ProgGenericInstrumentationUprobeCallTimestamp
+        }
+        _ => BpfProgramUnspecified,
+    })
+}
+
+pub fn bpf_map_path_to_enum(map_path: &str) -> Result<uprobe_stats_bpf_map_polled::MapPath> {
+    let Some(filename) = map_path.rsplit('/').next() else {
+        bail!("Failed to extract filename from map_path: {map_path}")
+    };
+    Ok(match filename {
+        "map_Accessibility_output_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathAccessibilityOutputBuf
+        }
+        "map_Binder_output_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBinderOutputBuf
+        }
+        "map_BitmapAllocation_output" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBitmapAllocationOutput
+        }
+        "map_DisruptiveApp_BindServiceLocked_output_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
+        }
+        "map_DisruptiveApp_ComponentEnabledSetting_output_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
+        }
+        "map_GenericInstrumentation_call_detail_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallDetailBuf
+        }
+        "map_GenericInstrumentation_call_timestamp_buf" => {
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallTimestampBuf
+        }
+        _ => {
+            error!("Unspecified map_path filename: {}", filename);
+            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified
+        }
+    })
+}
 
 #[derive(Default)]
 pub(crate) struct CodegenAtomWriter {}

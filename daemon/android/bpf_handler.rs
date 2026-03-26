@@ -1,5 +1,5 @@
 //! Deals with fetching data BPF ring buffers ("maps").
-use crate::atom::CodegenAtomWriter;
+use crate::atom::{bpf_map_path_to_enum, CodegenAtomWriter};
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use crate::device_properties::DefaultDeviceProperties;
 use crate::is_at_least_cinnamon_bun;
@@ -65,7 +65,7 @@ fn poll_loop_generic<H: Handler + Default>(
     }
     handler.on_finished()?;
 
-    let path_enum = get_map_path_enum(map_path);
+    let path_enum = bpf_map_path_to_enum(map_path)?;
     if let Err(e) = statslog_uprobestats::uprobe_stats_bpf_map_polled::stats_write(
         path_enum,
         duration.as_millis().try_into()?,
@@ -75,40 +75,6 @@ fn poll_loop_generic<H: Handler + Default>(
         error!("Failed to write uprobe_stats_bpf_map_polled atom: {:?}", e);
     };
     Ok(())
-}
-
-fn get_map_path_enum(map_path: &str) -> statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath {
-    let Some(filename) = map_path.rsplit('/').next() else {
-        error!("Failed to extract filename from map_path: {}", map_path);
-        return statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified;
-    };
-    match filename {
-        "map_Accessibility_output_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathAccessibilityOutputBuf
-        }
-        "map_Binder_output_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBinderOutputBuf
-        }
-        "map_BitmapAllocation_output" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBitmapAllocationOutput
-        }
-        "map_DisruptiveApp_BindServiceLocked_output_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
-        }
-        "map_DisruptiveApp_ComponentEnabledSetting_output_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
-        }
-        "map_GenericInstrumentation_call_detail_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallDetailBuf
-        }
-        "map_GenericInstrumentation_call_timestamp_buf" => {
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallTimestampBuf
-        }
-        _ => {
-            error!("Unspecified map_path filename: {}", filename);
-            statslog_uprobestats::uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified
-        }
-    }
 }
 
 fn register_handler<H: Handler + Default>(handler_registry: &mut HandlerRegistry) {

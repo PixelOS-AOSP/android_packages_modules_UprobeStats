@@ -1,8 +1,9 @@
 //! Core functions for managing the execution of uprobestats tasks.
 //! Functions should be called in the order documented.
 use crate::{
-    bpf_handler::poll_registry, bpf_map::binder_transaction::BinderInterfaceMapAccessor,
-    is_user_build, offsets::OffsetResolverImpl, process::ProcessResolverImpl,
+    atom::bpf_program_path_to_enum, bpf_handler::poll_registry,
+    bpf_map::binder_transaction::BinderInterfaceMapAccessor, is_user_build,
+    offsets::OffsetResolverImpl, process::ProcessResolverImpl,
 };
 use anyhow::{anyhow, bail, Result};
 use binder::LazyServiceGuard;
@@ -160,46 +161,6 @@ fn write_binder_transaction_filter_to_binder_bpf_map(
     Ok(())
 }
 
-fn bpf_program_path_to_enum(path: &str) -> uprobe_stats_bpf_attached::BpfProgram {
-    use uprobe_stats_bpf_attached::BpfProgram::*;
-    let Some(filename) = path.rsplit('/').next() else {
-        error!("Failed to extract filename from path: {}", path);
-        return BpfProgramUnspecified;
-    };
-    match filename {
-        "prog_Accessibility_uprobe_accessibility_service_connection" => {
-            ProgAccessibilityUprobeAccessibilityServiceConnection
-        }
-        "prog_Accessibility_uprobe_grant_runtime_permission" => {
-            ProgAccessibilityUprobeGrantRuntimePermission
-        }
-        "prog_Binder_uprobe_exec_transact_internal" => ProgBinderUprobeExecTransactInternal,
-        "prog_BitmapAllocation_uprobe_activity_perform_start" => {
-            ProgBitmapAllocationUprobeActivityPerformStart
-        }
-        "prog_BitmapAllocation_uprobe_apply_free_function" => {
-            ProgBitmapAllocationUprobeApplyFreeFunction
-        }
-        "prog_BitmapAllocation_uprobe_bitmap_creation_for_snapshot" => {
-            ProgBitmapAllocationUprobeBitmapCreationForSnapshot
-        }
-        "prog_BitmapAllocation_uprobe_create_scaled_bitmap" => {
-            ProgBitmapAllocationUprobeCreateScaledBitmap
-        }
-        "prog_DisruptiveApp_uprobe_bind_service_locked" => ProgDisruptiveAppUprobeBindServiceLocked,
-        "prog_DisruptiveApp_uprobe_set_component_enabled_setting" => {
-            ProgDisruptiveAppUprobeSetComponentEnabledSetting
-        }
-        "prog_GenericInstrumentation_uprobe_call_detail" => {
-            ProgGenericInstrumentationUprobeCallDetail
-        }
-        "prog_GenericInstrumentation_uprobe_call_timestamp" => {
-            ProgGenericInstrumentationUprobeCallTimestamp
-        }
-        _ => BpfProgramUnspecified,
-    }
-}
-
 /// Step 3b: executes the blocking, long-running part of a task:
 /// - attaches the BPF probes
 /// - polls the BPF maps for the specified duration
@@ -228,7 +189,7 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
                 probe.bpf_program_path.clone(),
             )?;
             if let Err(e) = uprobe_stats_bpf_attached::stats_write(
-                bpf_program_path_to_enum(&probe.bpf_program_path),
+                bpf_program_path_to_enum(&probe.bpf_program_path)?,
                 &probe.method_descriptor.fully_qualified_class_name,
                 &probe.method_descriptor.method_name,
                 &task.resolved_process.name,
