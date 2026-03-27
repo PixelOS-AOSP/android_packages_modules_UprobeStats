@@ -1,9 +1,9 @@
 //! UprobeStatsService is a binder service that receives task configurations from the statsd
 //! process and starts tasks according to the configuration.
-use crate::{task, task::GlobalState};
+use crate::{atom::write_internal_error, task, task::GlobalState};
 use binder::{Interface, Status};
 use log::{error, trace};
-use statslog_uprobestats::{uprobe_stats_internal_error, uprobe_stats_invocation};
+use statslog_uprobestats::{uprobe_stats_internal_error::ErrorType, uprobe_stats_invocation};
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -43,13 +43,14 @@ impl IUprobeStatsService for UprobeStatsService {
             let task = match task::resolve_config(&config) {
                 Ok(task) => task,
                 Err(e) => {
-                    if let Err(e) = uprobe_stats_internal_error::stats_write(
-                        uprobe_stats_internal_error::ErrorType::ErrorTypeConfigParseFailed,
+                    write_internal_error(
+                        ErrorType::ErrorTypeConfigParseFailed,
                         // `None` means the error was not for a specific task. Write -1 to signify that.
                         e.task_id().unwrap_or(-1),
-                    ) {
-                        error!("Failed to write uprobe_stats_internal_error atom for config parse failure: {e:?}");
-                    };
+                        None,
+                        None,
+                        0,
+                    );
                     error!("{e}");
                     return;
                 }
@@ -59,12 +60,7 @@ impl IUprobeStatsService for UprobeStatsService {
             {
                 let mut state = state.lock().unwrap();
                 if let Err(e) = task::update_polled_bpf_maps(&mut state, &task) {
-                    if let Err(e) = uprobe_stats_internal_error::stats_write(
-                        uprobe_stats_internal_error::ErrorType::ErrorTypeTaskConflict,
-                        task.id,
-                    ) {
-                        error!("Failed to write uprobe_stats_internal_error atom for task conflict: {e:?}");
-                    };
+                    write_internal_error(ErrorType::ErrorTypeTaskConflict, task.id, None, None, 0);
                     error!("{e}");
                     return;
                 }

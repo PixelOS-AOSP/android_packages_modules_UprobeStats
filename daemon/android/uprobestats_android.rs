@@ -1,5 +1,5 @@
 //! UprobeStats library
-mod atom;
+pub mod atom;
 pub mod bpf_handler;
 pub mod bpf_map;
 mod bridge_service;

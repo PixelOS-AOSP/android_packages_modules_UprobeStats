@@ -29,3 +29,9 @@ pub enum UprobeStatsError {
     #[error("BPF data invalid: {0}")]
     BpfDataInvalid(i64),
 }
+
+/// Marker for an error that has already been reported to statsd.
+/// This is used to prevent duplicative reporting at execution boundaries.
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub struct ReportedToStatsd(pub anyhow::Error);

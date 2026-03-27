@@ -1,3 +1,4 @@
+//! StatsD atom helpers.
 use anyhow::{anyhow, bail, Result};
 use log::error;
 use statslog_uprobestats::{
@@ -5,9 +6,11 @@ use statslog_uprobestats::{
     android_graphics_bitmap_scaled, bind_service_locked_with_bal_flags_reported,
     bind_service_locked_with_bal_flags_uids_reported, disabled_launcher_activity_uids_reported,
     set_component_enabled_setting_reported, uprobe_stats_bpf_attached, uprobe_stats_bpf_map_polled,
+    uprobe_stats_internal_error,
 };
 use uprobestats_core::atom::{AtomWriter, CodegenAtom};
 
+/// We don't want to log strings to statsd, so we convert the path to an enum.
 pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached::BpfProgram> {
     use uprobe_stats_bpf_attached::BpfProgram::*;
     let Some(filename) = path.rsplit('/').next() else {
@@ -43,41 +46,161 @@ pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached:
         "prog_GenericInstrumentation_uprobe_call_timestamp" => {
             ProgGenericInstrumentationUprobeCallTimestamp
         }
-        _ => BpfProgramUnspecified,
+        _ => {
+            error!("Unspecified program_path filename: {}", filename);
+            UprobeStatsBpfProgramUnspecified
+        }
     })
 }
 
+/// We don't want to log strings to statsd, so we convert the path to an enum.
 pub fn bpf_map_path_to_enum(map_path: &str) -> Result<uprobe_stats_bpf_map_polled::MapPath> {
+    use uprobe_stats_bpf_map_polled::MapPath::*;
     let Some(filename) = map_path.rsplit('/').next() else {
         bail!("Failed to extract filename from map_path: {map_path}")
     };
     Ok(match filename {
-        "map_Accessibility_output_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathAccessibilityOutputBuf
-        }
-        "map_Binder_output_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBinderOutputBuf
-        }
-        "map_BitmapAllocation_output" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathBitmapAllocationOutput
-        }
+        "map_Accessibility_output_buf" => BpfMapPathAccessibilityOutputBuf,
+        "map_Binder_output_buf" => BpfMapPathBinderOutputBuf,
+        "map_BitmapAllocation_output" => BpfMapPathBitmapAllocationOutput,
         "map_DisruptiveApp_BindServiceLocked_output_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
+            BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
         }
         "map_DisruptiveApp_ComponentEnabledSetting_output_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
+            BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
         }
         "map_GenericInstrumentation_call_detail_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallDetailBuf
+            BpfMapPathGenericInstrumentationCallDetailBuf
         }
         "map_GenericInstrumentation_call_timestamp_buf" => {
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathGenericInstrumentationCallTimestampBuf
+            BpfMapPathGenericInstrumentationCallTimestampBuf
         }
         _ => {
             error!("Unspecified map_path filename: {}", filename);
-            uprobe_stats_bpf_map_polled::MapPath::BpfMapPathUnspecified
+            UprobeStatsBpfMapPathUnspecified
         }
     })
+}
+
+/// Unfortunate that this needs to exist.
+/// stats-log-api-gen duplicates the enum definition
+/// into every module that uses it, making them distinct types in Rust even though they
+/// originate from the same proto enum.
+pub fn to_internal_error_bpf_attached_program(
+    p: uprobe_stats_bpf_attached::BpfProgram,
+) -> uprobe_stats_internal_error::BpfProgram {
+    use uprobe_stats_bpf_attached::BpfProgram as Attached;
+    use uprobe_stats_internal_error::BpfProgram as InternalError;
+    match p {
+        Attached::UprobeStatsBpfProgramUnspecified => {
+            InternalError::UprobeStatsBpfProgramUnspecified
+        }
+        Attached::ProgAccessibilityUprobeAccessibilityServiceConnection => {
+            InternalError::ProgAccessibilityUprobeAccessibilityServiceConnection
+        }
+        Attached::ProgAccessibilityUprobeGrantRuntimePermission => {
+            InternalError::ProgAccessibilityUprobeGrantRuntimePermission
+        }
+        Attached::ProgBinderUprobeExecTransactInternal => {
+            InternalError::ProgBinderUprobeExecTransactInternal
+        }
+        Attached::ProgBitmapAllocationOutput => InternalError::ProgBitmapAllocationOutput,
+        Attached::ProgBitmapAllocationUprobeActivityPerformStart => {
+            InternalError::ProgBitmapAllocationUprobeActivityPerformStart
+        }
+        Attached::ProgBitmapAllocationUprobeApplyFreeFunction => {
+            InternalError::ProgBitmapAllocationUprobeApplyFreeFunction
+        }
+        Attached::ProgBitmapAllocationUprobeBitmapCreationForSnapshot => {
+            InternalError::ProgBitmapAllocationUprobeBitmapCreationForSnapshot
+        }
+        Attached::ProgBitmapAllocationUprobeCreateScaledBitmap => {
+            InternalError::ProgBitmapAllocationUprobeCreateScaledBitmap
+        }
+        Attached::ProgDisruptiveAppUprobeBindServiceLocked => {
+            InternalError::ProgDisruptiveAppUprobeBindServiceLocked
+        }
+        Attached::ProgDisruptiveAppUprobeSetComponentEnabledSetting => {
+            InternalError::ProgDisruptiveAppUprobeSetComponentEnabledSetting
+        }
+        Attached::ProgGenericInstrumentationUprobeCallDetail => {
+            InternalError::ProgGenericInstrumentationUprobeCallDetail
+        }
+        Attached::ProgGenericInstrumentationUprobeCallTimestamp => {
+            InternalError::ProgGenericInstrumentationUprobeCallTimestamp
+        }
+        Attached::ProgKeepaliveUprobeAcquireWakeLockInternal => {
+            InternalError::ProgKeepaliveUprobeAcquireWakeLockInternal
+        }
+        Attached::ProgKeepaliveUprobeReleaseWakeLockInternal => {
+            InternalError::ProgKeepaliveUprobeReleaseWakeLockInternal
+        }
+    }
+}
+
+/// Unfortunate that this needs to exist.
+/// stats-log-api-gen duplicates the enum definition
+/// into every module that uses it, making them distinct types in Rust even though they
+/// originate from the same proto enum.
+pub fn to_internal_error_bpf_map_polled_path(
+    p: uprobe_stats_bpf_map_polled::MapPath,
+) -> uprobe_stats_internal_error::MapPath {
+    use uprobe_stats_bpf_map_polled::MapPath as Polled;
+    use uprobe_stats_internal_error::MapPath as InternalError;
+    match p {
+        Polled::UprobeStatsBpfMapPathUnspecified => InternalError::UprobeStatsBpfMapPathUnspecified,
+        Polled::BpfMapPathAccessibilityOutputBuf => InternalError::BpfMapPathAccessibilityOutputBuf,
+        Polled::BpfMapPathBinderOutputBuf => InternalError::BpfMapPathBinderOutputBuf,
+        Polled::BpfMapPathBitmapAllocationOutput => InternalError::BpfMapPathBitmapAllocationOutput,
+        Polled::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf => {
+            InternalError::BpfMapPathDisruptiveAppBindServiceLockedOutputBuf
+        }
+        Polled::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf => {
+            InternalError::BpfMapPathDisruptiveAppComponentEnabledSettingOutputBuf
+        }
+        Polled::BpfMapPathGenericInstrumentationCallDetailBuf => {
+            InternalError::BpfMapPathGenericInstrumentationCallDetailBuf
+        }
+        Polled::BpfMapPathGenericInstrumentationCallTimestampBuf => {
+            InternalError::BpfMapPathGenericInstrumentationCallTimestampBuf
+        }
+        Polled::BpfMapPathKeepaliveOutputBuf => InternalError::BpfMapPathKeepaliveOutputBuf,
+    }
+}
+
+/// Write an internal error atom to statsd.
+pub fn write_internal_error(
+    error_type: uprobe_stats_internal_error::ErrorType,
+    task_id: i64,
+    bpf_program_path: Option<&str>,
+    bpf_map_path: Option<&str>,
+    failure_point: i64,
+) {
+    use uprobe_stats_internal_error::{BpfProgram, MapPath};
+    let bpf_program_enum = match bpf_program_path {
+        Some(path) => {
+            // unwrap because if the path is /not/a/valid/path/at/all, that is totally unexpected and should panic.
+            to_internal_error_bpf_attached_program(bpf_program_path_to_enum(path).unwrap())
+        }
+        None => BpfProgram::UprobeStatsBpfProgramUnspecified,
+    };
+    let map_path_enum = match bpf_map_path {
+        Some(path) => {
+            // unwrap because if the path is /not/a/valid/path/at/all, that is totally unexpected and should panic.
+            to_internal_error_bpf_map_polled_path(bpf_map_path_to_enum(path).unwrap())
+        }
+        None => MapPath::UprobeStatsBpfMapPathUnspecified,
+    };
+
+    if let Err(e) = uprobe_stats_internal_error::stats_write(
+        error_type,
+        task_id,
+        bpf_program_enum,
+        map_path_enum,
+        failure_point,
+    ) {
+        error!("Failed to write uprobe_stats_internal_error atom: {:?}", e);
+    }
 }
 
 #[derive(Default)]

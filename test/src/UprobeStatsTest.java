@@ -21,9 +21,9 @@ import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_INSTRU
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SCALED_INSTRUMENTATION;
 import static android.uprobestats.mainline.flags.Flags.FLAG_ENABLE_BITMAP_SNAPSHOT;
 import static android.uprobestats.mainline.flags.Flags.FLAG_UPROBESTATS_MONITOR_DISRUPTIVE_APP_ACTIVITIES;
-import static com.android.uprobestats.UprobeStatsBpfAttached.BpfProgram;
-import static com.android.uprobestats.UprobeStatsBpfMapPolled.BpfMapPath;
+
 import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assume.assumeTrue;
 
 import android.cts.statsdatom.lib.AtomTestUtils;
@@ -31,18 +31,21 @@ import android.cts.statsdatom.lib.DeviceUtils;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.host.HostFlagsValueProvider;
+
 import com.android.compatibility.common.util.CpuFeatures;
 import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.RunUtil;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class UprobeStatsTest extends BaseHostJUnit4Test {
@@ -163,8 +166,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         }
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_BITMAP_ALLOCATION_UPROBE_BITMAP_CREATION_FOR_SNAPSHOT,
-                BpfMapPath.BPF_MAP_PATH_BITMAP_ALLOCATION_OUTPUT);
+                UprobeStatsBpfProgram.PROG_BITMAP_ALLOCATION_UPROBE_BITMAP_CREATION_FOR_SNAPSHOT,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_BITMAP_ALLOCATION_OUTPUT);
     }
 
     @Test
@@ -321,8 +324,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         assertThat(reported.getThirdField()).isGreaterThan(0); // KTIME_NS
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_BINDER_UPROBE_EXEC_TRANSACT_INTERNAL,
-                BpfMapPath.BPF_MAP_PATH_BINDER_OUTPUT_BUF);
+                UprobeStatsBpfProgram.PROG_BINDER_UPROBE_EXEC_TRANSACT_INTERNAL,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_BINDER_OUTPUT_BUF);
 
         // TODO(b/413078491): use the test infra from UprobeStats/test/cts to assert that the
         // correct events were enqueued to the event service (although a unit test does already
@@ -455,12 +458,13 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         assertThat(balUidsReported.getBindeeUid()).isGreaterThan(0);
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_DISRUPTIVE_APP_UPROBE_SET_COMPONENT_ENABLED_SETTING,
-                BpfMapPath.BPF_MAP_PATH_DISRUPTIVE_APP_COMPONENT_ENABLED_SETTING_OUTPUT_BUF);
+                UprobeStatsBpfProgram.PROG_DISRUPTIVE_APP_UPROBE_SET_COMPONENT_ENABLED_SETTING,
+                UprobeStatsBpfMapPath
+                        .BPF_MAP_PATH_DISRUPTIVE_APP_COMPONENT_ENABLED_SETTING_OUTPUT_BUF);
 
         mUprobeStatsTestRule.assertSelfMetricsReported(
-                BpfProgram.PROG_DISRUPTIVE_APP_UPROBE_BIND_SERVICE_LOCKED,
-                BpfMapPath.BPF_MAP_PATH_DISRUPTIVE_APP_BIND_SERVICE_LOCKED_OUTPUT_BUF);
+                UprobeStatsBpfProgram.PROG_DISRUPTIVE_APP_UPROBE_BIND_SERVICE_LOCKED,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_DISRUPTIVE_APP_BIND_SERVICE_LOCKED_OUTPUT_BUF);
     }
 
     @Test
@@ -468,8 +472,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 RESOLVE_PROCESS_FRAMEWORK_CONFIG,
                 ACTION_TRIGGER_FRAMEWORK,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
                 null);
     }
 
@@ -478,8 +482,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 RESOLVE_PROCESS_CUSTOM_CONFIG,
                 ACTION_TRIGGER_CUSTOM,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_TIMESTAMP,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_TIMESTAMP_BUF,
                 null);
     }
 
@@ -488,8 +492,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
                 new ExpectedValues(123, true, 456L));
     }
 
@@ -498,8 +502,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES_AOT,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
                 new ExpectedValues(123, true, 456L));
     }
 
@@ -508,8 +512,8 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
                 new ExpectedValues(-123, false, -456L));
     }
 
@@ -518,16 +522,16 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES_AOT,
-                BpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
-                BpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
+                UprobeStatsBpfProgram.PROG_GENERIC_INSTRUMENTATION_UPROBE_CALL_DETAIL,
+                UprobeStatsBpfMapPath.BPF_MAP_PATH_GENERIC_INSTRUMENTATION_CALL_DETAIL_BUF,
                 new ExpectedValues(-123, false, -456L));
     }
 
     private void genericInstrumentationTest(
             String config,
             String action,
-            BpfProgram bpfProgram,
-            BpfMapPath bpfMapPath,
+            UprobeStatsBpfProgram bpfProgram,
+            UprobeStatsBpfMapPath bpfMapPath,
             ExpectedValues expectedValues)
             throws Exception {
         assumeTrue(CpuFeatures.isArm64(getDevice()));
