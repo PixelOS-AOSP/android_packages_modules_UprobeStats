@@ -1,10 +1,11 @@
 //! Deals with fetching data BPF ring buffers ("maps").
-use crate::atom::{bpf_map_path_to_enum, CodegenAtomWriter};
+use crate::atom::{bpf_map_path_to_enum, write_internal_error, CodegenAtomWriter};
 use crate::bridge_service::DefaultUprobeStatsBridgeService;
 use crate::device_properties::DefaultDeviceProperties;
 use crate::is_at_least_cinnamon_bun;
 use anyhow::{bail, Result};
 use log::{debug, error, trace};
+use statslog_uprobestats::{uprobe_stats_bpf_map_polled, uprobe_stats_internal_error::ErrorType};
 use statssocket::AStatsEventWriter;
 use std::{collections::HashMap, sync::LazyLock, time::Duration};
 use uprobestats_bpf::BpfRingBuffer;
@@ -18,6 +19,7 @@ use uprobestats_core::bpf_handler::generic_instrumentation::{
 use uprobestats_core::bpf_handler::process_management::{
     SetUidTempAllowlistStateRecordHandler, UpdateDeviceIdleTempAllowlistRecordHandler,
 };
+use uprobestats_core::error::{ReportedToStatsd, UprobeStatsError};
 use uprobestats_core::{
     bpf_handler::{
         accessibility::AccessibilityHandler,
@@ -51,22 +53,61 @@ fn poll_loop_generic<H: Handler + Default>(
     // SAFETY: we've just checked that the passed `map_path` is the same as the one
     // expected by the `Handler` implementation, which encodes how the expected type is mapped to the
     // ring buffer's path.
-    let mut ring_buffer = unsafe { BpfRingBuffer::<H::T>::new(map_path)? };
+    let mut ring_buffer = unsafe { BpfRingBuffer::<H::T>::new(map_path) }.map_err(|e| {
+        error!("Failed to create BPF ring buffer for map_path {}: {:?}", map_path, e);
+        write_internal_error(
+            ErrorType::ErrorTypeBpfRingBufferCreateFailed,
+            task.id,
+            H::PROG_PATH,
+            Some(map_path),
+            0,
+        );
+        ReportedToStatsd(e)
+    })?;
     while let Some(remaining_millis) = timer.remaining_millis() {
         let remaining_millis: i32 = remaining_millis.try_into()?;
         debug!("polling {} for {} seconds", map_path, remaining_millis / 1000);
-        let result: Result<Vec<H::T>> = ring_buffer.poll(remaining_millis);
-        let result = result?;
+        let result = ring_buffer.poll(remaining_millis).map_err(|e| {
+            error!("Failed to poll BPF ring buffer for map_path {}: {:?}", map_path, e);
+            write_internal_error(
+                ErrorType::ErrorTypeBpfRingBufferPollFailed,
+                task.id,
+                H::PROG_PATH,
+                Some(map_path),
+                0,
+            );
+            ReportedToStatsd(e)
+        })?;
+
         trace!("Done polling {}, event count: {}", map_path, result.len());
         total_events += result.len() as i64;
         for i in &result {
-            handler.on_item(task, i)?;
+            handler.on_item(task, i).map_err(|e| {
+                error!("Error in on_item for map_path {}: {:?}", map_path, e);
+                let (error_type, failure_point) = match e.downcast_ref::<UprobeStatsError>() {
+                    Some(UprobeStatsError::BpfProgramError(point)) => {
+                        (ErrorType::ErrorTypeBpfProgramError, *point)
+                    }
+                    Some(UprobeStatsError::BpfDataInvalid(point)) => {
+                        (ErrorType::ErrorTypeBpfRingBufferDataInvalid, *point)
+                    }
+                    _ => (ErrorType::ErrorTypeTaskExecutionFailed, 0),
+                };
+                write_internal_error(
+                    error_type,
+                    task.id,
+                    H::PROG_PATH,
+                    Some(map_path),
+                    failure_point,
+                );
+                ReportedToStatsd(e)
+            })?;
         }
     }
     handler.on_finished()?;
 
     let path_enum = bpf_map_path_to_enum(map_path)?;
-    if let Err(e) = statslog_uprobestats::uprobe_stats_bpf_map_polled::stats_write(
+    if let Err(e) = uprobe_stats_bpf_map_polled::stats_write(
         path_enum,
         duration.as_millis().try_into()?,
         total_events,

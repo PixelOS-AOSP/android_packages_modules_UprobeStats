@@ -1,3 +1,4 @@
+//! StatsD atom helpers.
 use anyhow::{anyhow, bail, Result};
 use log::error;
 use statslog_uprobestats::{
@@ -9,6 +10,7 @@ use statslog_uprobestats::{
 };
 use uprobestats_core::atom::{AtomWriter, CodegenAtom};
 
+/// We don't want to log strings to statsd, so we convert the path to an enum.
 pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached::BpfProgram> {
     use uprobe_stats_bpf_attached::BpfProgram::*;
     let Some(filename) = path.rsplit('/').next() else {
@@ -51,6 +53,7 @@ pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached:
     })
 }
 
+/// We don't want to log strings to statsd, so we convert the path to an enum.
 pub fn bpf_map_path_to_enum(map_path: &str) -> Result<uprobe_stats_bpf_map_polled::MapPath> {
     use uprobe_stats_bpf_map_polled::MapPath::*;
     let Some(filename) = map_path.rsplit('/').next() else {
@@ -79,10 +82,10 @@ pub fn bpf_map_path_to_enum(map_path: &str) -> Result<uprobe_stats_bpf_map_polle
     })
 }
 
-// Unfortunate that this needs to exist.
-// stats-log-api-gen duplicates the enum definition
-// into every module that uses it, making them distinct types in Rust even though they
-// originate from the same proto enum.
+/// Unfortunate that this needs to exist.
+/// stats-log-api-gen duplicates the enum definition
+/// into every module that uses it, making them distinct types in Rust even though they
+/// originate from the same proto enum.
 pub fn to_internal_error_bpf_attached_program(
     p: uprobe_stats_bpf_attached::BpfProgram,
 ) -> uprobe_stats_internal_error::BpfProgram {
@@ -135,10 +138,10 @@ pub fn to_internal_error_bpf_attached_program(
     }
 }
 
-// Unfortunate that this needs to exist.
-// stats-log-api-gen duplicates the enum definition
-// into every module that uses it, making them distinct types in Rust even though they
-// originate from the same proto enum.
+/// Unfortunate that this needs to exist.
+/// stats-log-api-gen duplicates the enum definition
+/// into every module that uses it, making them distinct types in Rust even though they
+/// originate from the same proto enum.
 pub fn to_internal_error_bpf_map_polled_path(
     p: uprobe_stats_bpf_map_polled::MapPath,
 ) -> uprobe_stats_internal_error::MapPath {
@@ -165,6 +168,7 @@ pub fn to_internal_error_bpf_map_polled_path(
     }
 }
 
+/// Write an internal error atom to statsd.
 pub fn write_internal_error(
     error_type: uprobe_stats_internal_error::ErrorType,
     task_id: i64,

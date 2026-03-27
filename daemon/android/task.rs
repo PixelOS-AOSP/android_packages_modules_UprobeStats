@@ -22,6 +22,7 @@ use uprobestats_bpf::{bpf_perf_event_open, bpf_ring_buffer_discard, UpdateMapEle
 use uprobestats_core::config_resolver::{
     self, ConfigError, InterfaceConfig, ResolvedProbe, ResolvedTask,
 };
+use uprobestats_core::error::{ReportedToStatsd, UprobeStatsError};
 
 /// The global state for the uprobestats daemon process.
 /// - Some(ActiveState): tracks metadata when there are tasks currently running.
@@ -96,13 +97,15 @@ pub fn execute(task: &ResolvedTask) {
     match setup_binder_transaction_filters(&task.resolved_probes) {
         Ok(map) => {
             if let Err(e) = attach_probes_and_poll_maps(task) {
-                write_internal_error(
-                    ErrorType::ErrorTypeTaskExecutionFailed,
-                    task.id,
-                    None,
-                    None,
-                    0,
-                );
+                if !e.is::<ReportedToStatsd>() && !e.is::<UprobeStatsError>() {
+                    write_internal_error(
+                        ErrorType::ErrorTypeTaskExecutionFailed,
+                        task.id,
+                        None,
+                        None,
+                        0,
+                    );
+                }
                 error!("task execution failed: {e:?}");
             }
             cleanup_binder_transaction_filters(map, task.id);
@@ -192,7 +195,22 @@ fn attach_probes_and_poll_maps(task: &ResolvedTask) -> Result<()> {
                 probe.offsets.method_offset.try_into()?,
                 task.resolved_process.pid,
                 probe.bpf_program_path.clone(),
-            )?;
+            )
+            .map_err(|e| {
+                error!(
+                    "Failed to open BPF perf event for map_path {}: {:?}",
+                    probe.bpf_program_path, e
+                );
+                write_internal_error(
+                    ErrorType::ErrorTypeBpfProgramAttachFailed,
+                    task.id,
+                    Some(&probe.bpf_program_path),
+                    None,
+                    0,
+                );
+                ReportedToStatsd(e)
+            })?;
+
             if let Err(e) = uprobe_stats_bpf_attached::stats_write(
                 bpf_program_path_to_enum(&probe.bpf_program_path)?,
                 &probe.method_descriptor.fully_qualified_class_name,
