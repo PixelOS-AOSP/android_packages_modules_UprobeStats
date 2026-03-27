@@ -1,14 +1,17 @@
 //! Core functions for managing the execution of uprobestats tasks.
 //! Functions should be called in the order documented.
 use crate::{
-    atom::bpf_program_path_to_enum, bpf_handler::poll_registry,
-    bpf_map::binder_transaction::BinderInterfaceMapAccessor, is_user_build,
-    offsets::OffsetResolverImpl, process::ProcessResolverImpl,
+    atom::{bpf_program_path_to_enum, write_internal_error},
+    bpf_handler::poll_registry,
+    bpf_map::binder_transaction::BinderInterfaceMapAccessor,
+    is_user_build,
+    offsets::OffsetResolverImpl,
+    process::ProcessResolverImpl,
 };
 use anyhow::{anyhow, bail, Result};
 use binder::LazyServiceGuard;
 use log::{debug, error, info, trace};
-use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error};
+use statslog_uprobestats::{uprobe_stats_bpf_attached, uprobe_stats_internal_error::ErrorType};
 use std::{
     collections::{HashMap, HashSet},
     os::fd::{AsRawFd, OwnedFd},
@@ -93,23 +96,25 @@ pub fn execute(task: &ResolvedTask) {
     match setup_binder_transaction_filters(&task.resolved_probes) {
         Ok(map) => {
             if let Err(e) = attach_probes_and_poll_maps(task) {
-                if let Err(e) = uprobe_stats_internal_error::stats_write(
-                    uprobe_stats_internal_error::ErrorType::ErrorTypeTaskExecutionFailed,
+                write_internal_error(
+                    ErrorType::ErrorTypeTaskExecutionFailed,
                     task.id,
-                ) {
-                    error!("Failed to write uprobe_stats_internal_error atom for task execution failure: {:?}", e);
-                };
+                    None,
+                    None,
+                    0,
+                );
                 error!("task execution failed: {e:?}");
             }
             cleanup_binder_transaction_filters(map, task.id);
         }
         Err(e) => {
-            if let Err(e) = uprobe_stats_internal_error::stats_write(
-                uprobe_stats_internal_error::ErrorType::ErrorTypeBinderFilterSetupFailed,
+            write_internal_error(
+                ErrorType::ErrorTypeBinderFilterSetupFailed,
                 task.id,
-            ) {
-                error!("Failed to write uprobe_stats_internal_error atom for binder filter setup failure: {:?}", e);
-            };
+                None,
+                None,
+                0,
+            );
             error!(
                 "Failed to setup binder transaction filters. Abandoning execution of task: {e:?}"
             );
@@ -250,15 +255,7 @@ fn cleanup_binder_transaction_filters(
         return;
     };
     if let Err(e) = binder_interface_bpf_map.drain() {
-        if let Err(e) = uprobe_stats_internal_error::stats_write(
-            uprobe_stats_internal_error::ErrorType::ErrorTypeBinderFilterCleanupFailed,
-            task_id,
-        ) {
-            error!(
-                "Failed to write uprobe_stats_internal_error atom for binder filter cleanup failure: {:?}",
-                e
-            );
-        };
+        write_internal_error(ErrorType::ErrorTypeBinderFilterCleanupFailed, task_id, None, None, 0);
         error!("Failed to drain binder interface bpf map: {e:?}");
     }
 }
