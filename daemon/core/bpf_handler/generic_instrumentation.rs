@@ -20,6 +20,8 @@ pub struct CallTimestampHandler<A> {
 unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallTimestampHandler<A> {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_GenericInstrumentation_call_timestamp_buf";
+    const PROG_PATH: Option<&'static str> =
+        Some("/sys/fs/bpf/uprobestats/prog_GenericInstrumentation_uprobe_call_timestamp");
     type T = CallTimestamp;
     fn on_item(&mut self, task: &ResolvedTask, data: &CallTimestamp) -> Result<()> {
         debug!("CallTimestamp - event: {}, timestamp_ns: {}", data.event, data.timestampNs,);
@@ -58,6 +60,8 @@ pub struct CallResultHandler<A> {
 unsafe impl<A: AtomWriter<UnstructuredAtom>> Handler for CallResultHandler<A> {
     const MAP_PATH: &'static str =
         "/sys/fs/bpf/uprobestats/map_GenericInstrumentation_call_detail_buf";
+    const PROG_PATH: Option<&'static str> =
+        Some("/sys/fs/bpf/uprobestats/prog_GenericInstrumentation_uprobe_call_detail");
     type T = CallResult;
     fn on_item(&mut self, task: &ResolvedTask, data: &CallResult) -> Result<()> {
         debug!("CallResult - register: pc = {}", data.pc,);
