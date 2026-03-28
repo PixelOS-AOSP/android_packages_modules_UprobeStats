@@ -35,10 +35,12 @@ java_library {
     defaults: ["standalone-system-server-module-optimize-defaults"],
     installable: true,
     libs: [
+        "androidx.annotation_annotation",
         "framework-annotations-lib",
         "framework-configinfrastructure.stubs.module_lib",
     ],
     static_libs: [
+        "androidx.annotation_annotation",
         "uprobestats-bridge-service-aidl-java",
         "uprobestats_mainline_flags_java_lib",
     ],

@@ -4,7 +4,7 @@ use atrace::{atrace_begin, atrace_end, AtraceTag};
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
 use log::{error, trace, LevelFilter};
 use rustutils::android::system_properties;
-use statslog_uprobestats::uprobe_stats_invocation;
+use statslog_uprobestats::{uprobe_stats_internal_error::ErrorType, uprobe_stats_invocation};
 use std::{
     cmp::{max, min},
     fs::File,
@@ -14,6 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use uprobestats_android::{
+    atom::write_internal_error,
     is_at_least_cinnamon_bun, is_user_build, task,
     uprobestats_service::{UprobeStatsService, UPROBESTATS_SERVICE_NAME},
 };
@@ -65,11 +66,22 @@ fn handle_tasks() -> Result<()> {
     // location and starts the uprobestats daemon via property.
     if !is_at_least_cinnamon_bun() {
         let config_bytes = file_path_to_bytes("/data/misc/uprobestats-configs/config")?;
-        let task = task::resolve_config(&config_bytes)?;
+        let task = task::resolve_config(&config_bytes).inspect_err(|e| {
+            write_internal_error(
+                ErrorType::ErrorTypeConfigParseFailed,
+                // `None` means the error was not for a specific task. Write -1 to signify that.
+                e.task_id().unwrap_or(-1),
+                None,
+                None,
+                0,
+            );
+        })?;
 
         let mut state = state.lock().unwrap();
 
-        task::update_polled_bpf_maps(&mut state, &task)?;
+        task::update_polled_bpf_maps(&mut state, &task).inspect_err(|_| {
+            write_internal_error(ErrorType::ErrorTypeTaskConflict, task.id, None, None, 0);
+        })?;
         task::execute(&task);
         task::cleanup_polled_bpf_maps(&mut state, &task);
 

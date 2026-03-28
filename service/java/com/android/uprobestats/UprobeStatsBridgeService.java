@@ -18,6 +18,8 @@ package com.android.uprobestats;
 
 import android.annotation.NonNull;
 import android.content.Context;
+import android.os.Build;
+import androidx.annotation.RequiresApi;
 import android.util.Slog;
 
 import com.android.server.SystemService;
@@ -27,6 +29,7 @@ import com.android.server.SystemService;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.CINNAMON_BUN)
 public class UprobeStatsBridgeService extends SystemService {
     private static final String SERVICE_NAME = "uprobestats_bridge";
     private static final String TAG = "UprobeStatsBridgeService";

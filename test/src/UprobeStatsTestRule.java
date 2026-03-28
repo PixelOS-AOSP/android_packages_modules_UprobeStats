@@ -16,19 +16,11 @@
 
 package com.android.uprobestats;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
-import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
-
-import com.android.os.framework.FrameworkExtensionAtoms;
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.util.RunUtil;
-import com.google.protobuf.ExtensionRegistry;
-
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import com.android.internal.os.StatsdConfigProto;
 import com.android.internal.os.StatsdConfigProto.Alert;
@@ -39,16 +31,22 @@ import com.android.internal.os.StatsdConfigProto.UprobestatsDetails;
 import com.android.internal.os.StatsdConfigProto.ValueMetric;
 import com.android.os.AtomsProto.AppBreadcrumbReported;
 import com.android.os.AtomsProto.Atom;
+import com.android.os.StatsLog;
+import com.android.os.framework.FrameworkExtensionAtoms;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.util.RunUtil;
-import com.android.os.StatsLog;
-import com.android.tradefed.device.ITestDevice;
-import com.google.protobuf.ExtensionRegistry;
 
 import com.google.common.collect.ImmutableList;
-import com.google.protobuf.TextFormat;
 import com.google.protobuf.Extension;
+import com.google.protobuf.ExtensionRegistry;
+import com.google.protobuf.TextFormat;
+
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+
+import uprobestats.protos.Config.UprobestatsConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,12 +57,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import uprobestats.protos.Config.UprobestatsConfig;
-
-import java.util.function.Supplier;
-
-import static com.google.common.truth.Truth.assertThat;
 
 public class UprobeStatsTestRule implements TestRule {
     private static final String CONFIG_DIR = "/data/misc/uprobestats-configs/";
@@ -191,9 +183,7 @@ public class UprobeStatsTestRule implements TestRule {
      * as evidenced by the presence of the corresponding self-metrics atoms.
      */
     public void assertSelfMetricsReported(
-            UprobeStatsBpfAttached.BpfProgram bpfProgram,
-            UprobeStatsBpfMapPolled.BpfMapPath bpfMapPath)
-            throws Exception {
+            UprobeStatsBpfProgram bpfProgram, UprobeStatsBpfMapPath bpfMapPath) throws Exception {
         assertSelfMetricsReported(
                 bpfProgram, bpfMapPath, atom -> assertThat(atom.getEventsCount()).isGreaterThan(0));
     }
@@ -204,8 +194,8 @@ public class UprobeStatsTestRule implements TestRule {
      * the BPF map polled atom passes the given predicate.
      */
     public void assertSelfMetricsReported(
-            UprobeStatsBpfAttached.BpfProgram bpfProgram,
-            UprobeStatsBpfMapPolled.BpfMapPath bpfMapPath,
+            UprobeStatsBpfProgram bpfProgram,
+            UprobeStatsBpfMapPath bpfMapPath,
             Consumer<UprobeStatsBpfMapPolled> bpfMapPolledConsumer)
             throws Exception {
 
