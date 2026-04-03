@@ -40,7 +40,6 @@ java_library {
         "framework-configinfrastructure.stubs.module_lib",
     ],
     static_libs: [
-        "androidx.annotation_annotation",
         "uprobestats-bridge-service-aidl-java",
         "uprobestats_mainline_flags_java_lib",
     ],
