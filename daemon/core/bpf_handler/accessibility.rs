@@ -1,6 +1,6 @@
 use crate::{
     atom::{AtomWriter, Field, FieldAnnotation, UnstructuredAtom, Value},
-    bpf_handler::Handler,
+    bpf_handler::{DynamicInstrumentationPayloadIds, Handler},
     bridge_service::UprobeStatsBridgeService,
     config_resolver::ResolvedTask,
     string::bytes_as_nonempty_str,
@@ -234,8 +234,10 @@ impl From<Event> for uprobestats::Event::Event {
             uid: event.uid,
             timestampMs: event.timestamp.as_millis().try_into().unwrap(),
             payloadId: match event.variant {
-                EventType::A11y(_) => 1,
-                EventType::RuntimePermissionGrant(_) => 2,
+                EventType::A11y(_) => DynamicInstrumentationPayloadIds::BinderTransaction as i32,
+                EventType::RuntimePermissionGrant(_) => {
+                    DynamicInstrumentationPayloadIds::RuntimePermissionGrant as i32
+                }
             },
             payload: match event.variant {
                 EventType::A11y(code) => vec![
@@ -246,7 +248,8 @@ impl From<Event> for uprobestats::Event::Event {
                     Entry {
                         key: "INTERFACE_NAME".to_string(),
                         value: uprobestats::Value::Value::StringValue(
-                            "IAccessibilityServiceConnection".to_string(),
+                            "android.accessibilityservice.IAccessibilityServiceConnection"
+                                .to_string(),
                         ),
                     },
                 ],
@@ -389,7 +392,7 @@ mod test {
                 if event.timestampMs != timestamp.as_millis().try_into().unwrap() {
                     return false;
                 }
-                if event.payloadId != 1 {
+                if event.payloadId != DynamicInstrumentationPayloadIds::BinderTransaction as i32 {
                     return false;
                 }
                 let has_code = event.payload.iter().any(|e| {
@@ -398,7 +401,7 @@ mod test {
                 });
                 let has_interface = event.payload.iter().any(|e| {
                     e.key == "INTERFACE_NAME"
-                        && matches!(&e.value, uprobestats::Value::Value::StringValue(s) if s == "IAccessibilityServiceConnection")
+                        && matches!(&e.value, uprobestats::Value::Value::StringValue(s) if s == "android.accessibilityservice.IAccessibilityServiceConnection")
                 });
                 has_code && has_interface
             })
@@ -425,7 +428,7 @@ mod test {
                 if event.timestampMs != timestamp.as_millis().try_into().unwrap() {
                     return false;
                 }
-                if event.payloadId != 2 {
+                if event.payloadId != DynamicInstrumentationPayloadIds::RuntimePermissionGrant as i32 {
                     return false;
                 }
                 let has_permission = event.payload.iter().any(|e| {

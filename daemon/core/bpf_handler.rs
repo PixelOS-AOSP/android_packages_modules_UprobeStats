@@ -46,6 +46,7 @@ enum DynamicInstrumentationPayloadIds {
     BinderTransaction = 1,
     DisabledLauncherActivity = 2,
     BindAllowBackgroundActivityStarts = 3,
+    RuntimePermissionGrant = 4,
 }
 
 fn get_current_timestamp_millis() -> i64 {
