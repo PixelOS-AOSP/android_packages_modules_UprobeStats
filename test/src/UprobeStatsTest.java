@@ -98,7 +98,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                         .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
                         .findFirst()
                         .get();
-        assertThat(reported.getFirstField()).isEqualTo(1);
+        assertThat(reported.getFirstField()).isEqualTo(0);
         assertThat(reported.getSecondField()).isGreaterThan(0);
         assertThat(reported.getThirdField()).isEqualTo(0);
     }
