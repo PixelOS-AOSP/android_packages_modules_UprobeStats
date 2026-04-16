@@ -3,7 +3,7 @@
 
 tasks {
     probe_configs {
-        bpf_name: "prog_GenericInstrumentation_uprobe_call_timestamp_1"
+        bpf_name: "prog_GenericInstrumentation_uprobe_call_timestamp"
         fully_qualified_class_name: "com.android.server.am.BatteryStatsService"
         method_name: "setBatteryState"
         fully_qualified_parameters: ["int", "int", "int", "int", "int", "int", "int", "int", "long"]

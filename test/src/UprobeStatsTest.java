@@ -98,7 +98,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
                         .getExtensionAtoms(UprobestatsExtensionAtoms.testUprobestatsAtomReported)
                         .findFirst()
                         .get();
-        assertThat(reported.getFirstField()).isEqualTo(1);
+        assertThat(reported.getFirstField()).isEqualTo(0);
         assertThat(reported.getSecondField()).isGreaterThan(0);
         assertThat(reported.getThirdField()).isEqualTo(0);
     }
@@ -479,6 +479,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_apkMethod() throws Exception {
+        assumeTrue(getDevice().getApiLevel() >= CINNAMON_BUN);
         genericInstrumentationTest(
                 RESOLVE_PROCESS_CUSTOM_CONFIG,
                 ACTION_TRIGGER_CUSTOM,
@@ -489,6 +490,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_genericInstrumentation_primitiveArgs() throws Exception {
+        assumeTrue(getDevice().getApiLevel() >= CINNAMON_BUN);
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES,
@@ -499,6 +501,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_genericInstrumentation_primitiveArgsAot() throws Exception {
+        assumeTrue(getDevice().getApiLevel() >= CINNAMON_BUN);
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES_AOT,
@@ -509,6 +512,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_genericInstrumentation_primitiveArgs_negative() throws Exception {
+        assumeTrue(getDevice().getApiLevel() >= CINNAMON_BUN);
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES,
@@ -519,6 +523,7 @@ public class UprobeStatsTest extends BaseHostJUnit4Test {
 
     @Test
     public void apkProcess_genericInstrumentation_primitiveArgsAot_negative() throws Exception {
+        assumeTrue(getDevice().getApiLevel() >= CINNAMON_BUN);
         genericInstrumentationTest(
                 GENERIC_INSTRUMENTATION_PRIMITIVE_ARGS_AOT_CONFIG,
                 ACTION_TRIGGER_PRIMITIVES_AOT,

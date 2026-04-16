@@ -17,7 +17,7 @@ pub fn bpf_program_path_to_enum(path: &str) -> Result<uprobe_stats_bpf_attached:
         bail!("Failed to extract filename from path: {path}")
     };
     Ok(match filename {
-        "prog_Accessibility_uprobe_accessibility_service_connection" => {
+        "prog_Accessibility_uprobe_dispatch_gesture" => {
             ProgAccessibilityUprobeAccessibilityServiceConnection
         }
         "prog_Accessibility_uprobe_grant_runtime_permission" => {
